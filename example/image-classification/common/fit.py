@@ -165,9 +165,9 @@ def fit(args, network, data_loader, **kwargs):
                 logging.info('Batch [%d]\tSpeed: %.2f samples/sec', i,
                              args.disp_batches * args.batch_size / (time.time() - tic))
                 tic = time.time()
-
         return
 
+    network = mx.symbol.load('resnet50_v1.json')
     # load model
     if 'arg_params' in kwargs and 'aux_params' in kwargs:
         arg_params = kwargs['arg_params']
@@ -186,7 +186,6 @@ def fit(args, network, data_loader, **kwargs):
 
     # learning rate
     lr, lr_scheduler = _get_lr_scheduler(args, kv)
-
     # create model
     model = mx.mod.Module(
         context=devs,
@@ -286,7 +285,6 @@ def fit(args, network, data_loader, **kwargs):
     if 'batch_end_callback' in kwargs:
         cbs = kwargs['batch_end_callback']
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
-
     # run
     model.fit(train,
               begin_epoch=args.load_epoch if args.load_epoch else 0,
