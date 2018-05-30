@@ -52,12 +52,12 @@ if __name__ == '__main__':
     # load network
     from importlib import import_module
     if args.network == "resnet-v1":
-        net = mx.symbol.load('resnet50_v1.json')
+        sym = mx.symbol.load('resnet50_v1.json')
     elif args.network == "resnet-v1b":
-        net = mx.symbol.load('resnet50_v1b.json')
+        sym = mx.symbol.load('resnet50_v1b.json')
     else:
         net = import_module('symbols.'+args.network)
-    sym = net.get_symbol(**vars(args))
-
+        sym = net.get_symbol(**vars(args))
+    
     # train
     fit.fit(args, sym, data.get_rec_iter)
