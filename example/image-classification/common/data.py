@@ -53,9 +53,9 @@ def add_data_aug_args(parser):
                      help='max change of saturation, whose range is [0, 255]')
     aug.add_argument('--max-random-l', type=int, default=0,
                      help='max change of intensity, whose range is [0, 255]')
-    aug.add_argument('--min-random-aspect-ratio', type=float, default=1,
+    aug.add_argument('--min-random-aspect-ratio', type=float, default=0.75,
                      help='min value of aspect ratio, whose value should be positive.')
-    aug.add_argument('--max-random-aspect-ratio', type=float, default=1,
+    aug.add_argument('--max-random-aspect-ratio', type=float, default=1.33,
                      help='max value of aspect ratio')
     aug.add_argument('--max-random-rotate-angle', type=int, default=0,
                      help='max angle to rotate, whose range is [0, 360]')
@@ -67,15 +67,15 @@ def add_data_aug_args(parser):
                      help='min ratio to scale, should >= img_size/input_shape. otherwise use --pad-size')
     aug.add_argument('--max-random-area', type=float, default=1,
                      help='max area to crop in random resized crop, whose range is [0, 1]')
-    aug.add_argument('--min-random-area', type=float, default=1,
+    aug.add_argument('--min-random-area', type=float, default=0.08,
                      help='min area to crop in random resized crop, whose range is [0, 1]')
-    aug.add_argument('--brightness', type=float, default=0,
+    aug.add_argument('--brightness', type=float, default=0.4,
                      help='brightness jittering, whose range is [0, 1]')
-    aug.add_argument('--contrast', type=float, default=0,
+    aug.add_argument('--contrast', type=float, default=0.4,
                      help='contrast jittering, whose range is [0, 1]')
-    aug.add_argument('--saturation', type=float, default=0,
+    aug.add_argument('--saturation', type=float, default=0.4,
                      help='saturation jittering, whose range is [0, 1]')
-    aug.add_argument('--pca-noise', type=float, default=0,
+    aug.add_argument('--pca-noise', type=float, default=0.1,
                      help='pca noise, whose range is [0, 1]')
     aug.add_argument('--random-resized-crop', action='store_true',
                      help='whether to use random resized crop')
@@ -207,24 +207,24 @@ def get_rec_iter(args, kv=None):
     rand_crop           = False,
     rand_mirror         = True,
     random_resized_crop = True,
-    max_random_scale    = 1,
-    min_random_scale    = 1,
+    max_random_scale    = args.max_random_scale,
+    min_random_scale    = args.min_random_scale,
     pad                 = 0,
     fill_value          = 127,
-    max_aspect_ratio    = 1.33,
-    min_aspect_ratio    = 0.75,
-    max_random_area     = 1,
-    min_random_area     = 0.08,
+    max_aspect_ratio    = args.max_random_aspect_ratio,
+    min_aspect_ratio    = args.min_random_aspect_ratio,
+    max_random_area     = args.max_random_area,
+    min_random_area     = args.min_random_area,
     random_h            = 0,
     random_s            = 0,
     random_l            = 0,
-    brightness          = 0.4,
-    saturation          = 0.4,
-    contrast            = 0.4,
-    pca_noise           = 0.1,
-    max_rotate_angle    = 0,
-    max_shear_ratio     = 0,
-    preprocess_threads  = 30,
+    brightness          = args.brightness,
+    saturation          = args.saturation,
+    contrast            = args.contrast,
+    pca_noise           = args.pca_noise,
+    max_rotate_angle    = args.max_random_rotate_angle,
+    max_shear_ratio     = args.max_random_shear_ratio,
+    preprocess_threads  = args.data_nthreads,
     shuffle             = True,
     num_parts           = nworker,
     part_index          = rank)
@@ -240,7 +240,7 @@ def get_rec_iter(args, kv=None):
     batch_size          = args.batch_size,
     resize              = 256,
     data_shape          = (3, 224, 224),
-    preprocess_threads  = 30,
+    preprocess_threads  = args.data_nthreads,
     rand_crop           = False,
     rand_mirror         = False,
     num_parts           = nworker,
