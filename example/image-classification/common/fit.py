@@ -166,8 +166,11 @@ def fit(args, network, data_loader, **kwargs):
                              args.disp_batches * args.batch_size / (time.time() - tic))
                 tic = time.time()
         return
+    if args.network == "resnet-v1":
+        network = mx.symbol.load('resnet50_v1.json')
+    elif args.network == "resnet-v1b":
+        network = mx.symbol.load('resnet50_v1b.json')
 
-    network = mx.symbol.load('resnet50_v1.json')
     # load model
     if 'arg_params' in kwargs and 'aux_params' in kwargs:
         arg_params = kwargs['arg_params']
