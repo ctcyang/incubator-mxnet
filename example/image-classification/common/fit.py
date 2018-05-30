@@ -167,7 +167,6 @@ def fit(args, network, data_loader, **kwargs):
                 tic = time.time()
         return
 
-    network = mx.symbol.load('resnet50_v1.json')
     # load model
     if 'arg_params' in kwargs and 'aux_params' in kwargs:
         arg_params = kwargs['arg_params']
