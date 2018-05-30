@@ -284,6 +284,7 @@ def fit(args, network, data_loader, **kwargs):
     if 'batch_end_callback' in kwargs:
         cbs = kwargs['batch_end_callback']
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
+    train = mx.io.ResizeIter(train, math.ceil(int(args.num_examples/kv.num_workers)/args.batch_size))
     # run
     model.fit(train,
               begin_epoch=args.load_epoch if args.load_epoch else 0,
