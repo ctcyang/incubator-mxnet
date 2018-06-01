@@ -168,3 +168,37 @@ class PolyScheduler(LRScheduler):
             self.base_lr = self.base_lr_orig * pow(1.0 - float(num_update) / float(self.max_update),
                                                    self.power)
         return self.base_lr
+
+class WarmupScheduler(LRScheduler):
+    """Implement linear warmup
+
+    base_lr * pow(1 - num_update/max_steps, poly)
+
+    Parameters
+    ----------
+    lr_begin: float
+                  learning rate at the first iteration of warmup
+    warmup_steps: int
+                  number of warmup steps
+        scheduler: LRScheduler
+                  scheduler following the warmup
+    """
+    def __init__(self, lr_begin, warmup_steps, scheduler, **kwargs):
+        super(WarmupScheduler, self).__init__()
+        self.lr_begin = lr_begin
+        self.warmup_steps = warmup_steps
+        self.scheduler = scheduler
+        self.lrs_updates = {}
+    def __call__(self, num_update):
+        if num_update < self.warmup_steps:
+            self.base_lr = self.scheduler.base_lr
+            if num_update not in self.lrs_updates:
+                l = self.lr_begin + (self.base_lr - self.lr_begin) * float(num_update)/float(self.warmup_steps)
+                self.lrs_updates[num_update] = l
+                #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
+            else:
+                l = self.lrs_updates[num_update]
+        if num_update not in self.lrs_updates:
+            self.lrs_updates[num_update] = self.scheduler(num_update - self.warmup_steps)
+            #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
+        return self.lrs_updates[num_update]
