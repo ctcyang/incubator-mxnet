@@ -191,7 +191,9 @@ def fit(args, network, data_loader, **kwargs):
         symbol=network
     )
 
-    lr_scheduler = lr_scheduler
+    epoch_size = int(int(args.num_examples/args.batch_size)/kv.num_workers)
+    if args.warmup_epochs > 0:
+        lr_scheduler = mx.lr_scheduler.WarmupScheduler(0,epoch_size * args.warmup_epochs, lr_scheduler)
     optimizer_params = {
         'learning_rate': lr,
         'wd': args.wd,
