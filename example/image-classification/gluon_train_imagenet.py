@@ -16,8 +16,10 @@ from gluoncv.utils import makedirs, TrainingHistory, freeze_bn
 
 # CLI
 parser = argparse.ArgumentParser(description='Train a model for image classification.')
-parser.add_argument('--data-dir', type=str, default='~/.mxnet/datasets/imagenet',
+parser.add_argument('--data-dir', type=str, default='~/data/gluon/',
                     help='training and validation pictures to use.')
+parser.add_argument('--recio', action='store_true')
+parser.add_argument('--optimizer', type=str, default='nag')
 parser.add_argument('--dummy', action='store_true',
                     help='use dummy data to test training speed. default is false.')
 parser.add_argument('--batch-size', type=int, default=32,
@@ -40,7 +42,7 @@ parser.add_argument('--lr-decay-period', type=int, default=0,
                     help='interval for periodic learning rate decays. default is 0 to disable.')
 parser.add_argument('--lr-decay-epoch', type=str, default='40,60',
                     help='epoches at which learning rate decays. default is 40,60.')
-parser.add_argument('--mode', type=str,
+parser.add_argument('--mode', type=str, default='hybrid',
                     help='mode in which to train the model. options are symbolic, imperative, hybrid')
 parser.add_argument('--model', type=str, required=True,
                     help='type of model to use. see vision_model for options.')
@@ -64,6 +66,7 @@ parser.add_argument('--logging-dir', type=str, default='logs',
                     help='directory of training logs')
 parser.add_argument('--save-plot-dir', type=str, default='.',
                     help='the path to save the history plot')
+parser.add_argument('--dtype', type=str, default='float32')
 parser.add_argument('--params-file', type=str, default='')
 opt = parser.parse_args()
 
@@ -91,11 +94,12 @@ if model_name.startswith('vgg'):
 elif model_name.startswith('resnext'):
     kwargs['use_se'] = opt.use_se
 
-optimizer = 'nag'
-optimizer_params = {'learning_rate': opt.lr, 'wd': opt.wd, 'momentum': opt.momentum}
+optimizer = opt.optimizer
+optimizer_params = {'learning_rate': opt.lr, 'wd': opt.wd, 'momentum': opt.momentum, 'multi_precision':True}
 
 net = get_model(model_name, **kwargs)
 net.initialize(mx.init.MSRAPrelu(), ctx=context)
+net.cast(opt.dtype)
 
 if opt.params_file:
     # net.load_params(opt.params_file, ctx=ctx)
@@ -117,9 +121,8 @@ if opt.use_se:
     model_name = 'se_' + model_name
 
 acc_top1 = mx.metric.Accuracy()
-acc_top5 = mx.metric.TopKAccuracy(5)
-train_history = TrainingHistory(['training-top1-err', 'training-top5-err',
-                                 'validation-top1-err', 'validation-top5-err'])
+train_history = TrainingHistory(['training-top1-err',
+                                 'validation-top1-err'])
 
 save_frequency = opt.save_frequency
 if opt.save_dir and save_frequency:
@@ -166,22 +169,21 @@ def smooth(label, classes, eta=0.1):
 
 def test(ctx, val_data):
     acc_top1.reset()
-    acc_top5.reset()
     for i, batch in enumerate(val_data):
-        data = gluon.utils.split_and_load(batch.data[0], ctx_list=ctx, batch_axis=0)
-        label = gluon.utils.split_and_load(batch.label[0], ctx_list=ctx, batch_axis=0)
-        outputs = [net(X) for X in data]
+        dataarg = batch.data[0] if opt.recio else batch[0]
+        labelarg = batch.label[0] if opt.recio else batch[1]
+        data = gluon.utils.split_and_load(batcharg, ctx_list=ctx, batch_axis=0)
+        label = gluon.utils.split_and_load(labelarg, ctx_list=ctx, batch_axis=0)
+        outputs = [net(X.astype(opt.dtype, copy=False)) for X in data]
         acc_top1.update(label, outputs)
-        acc_top5.update(label, outputs)
 
     _, top1 = acc_top1.get()
-    _, top5 = acc_top5.get()
-    return (1-top1, 1-top5)
+    return 1-top1
 
 def get_rec():
     train = mx.io.ImageRecordIter(
-        path_imgrec         = "/home/ubuntu/data/train-480px-q95.rec",
-        path_imgidx         = "/home/ubuntu/data/train-480px-q95.idx",
+        path_imgrec         =  "/media/ramdisk/pass-through/train-passthrough.rec",
+        path_imgidx         =  "/media/ramdisk/pass-through/train-passthrough.idx",
         label_width         = 1,
         mean_r              = 123.68,
         mean_g              = 116.779,
@@ -207,7 +209,7 @@ def get_rec():
         num_parts           = 1,
         part_index          = 0)
     val = mx.io.ImageRecordIter(
-        path_imgrec         = "/home/ubuntu/data/val-256px-q95.rec",
+        path_imgrec         =  "/media/ramdisk/pass-through/val-passthrough.rec",
         path_imgidx         = '',
         label_width         = 1,
         mean_r              = 123.68,
@@ -227,14 +229,16 @@ def get_rec():
 def train(epochs, ctx):
     if isinstance(ctx, mx.Context):
         ctx = [ctx]
-
-    train_data = gluon.data.DataLoader(
-        imagenet.classification.ImageNet(opt.data_dir, train=True).transform_first(transform_train),
-        batch_size=batch_size, shuffle=True, last_batch='discard', num_workers=num_workers)
-    val_data = gluon.data.DataLoader(
-        imagenet.classification.ImageNet(opt.data_dir, train=False).transform_first(transform_test),
-        batch_size=batch_size, shuffle=False, num_workers=num_workers)
-#    train_data, val_data = get_rec()
+    if not opt.recio:
+        train_data = gluon.data.DataLoader(
+          imagenet.classification.ImageNet(opt.data_dir, train=True).transform_first(transform_train),
+          batch_size=batch_size, shuffle=True, last_batch='discard', num_workers=num_workers)
+        val_data = gluon.data.DataLoader(
+          imagenet.classification.ImageNet(opt.data_dir, train=False).transform_first(transform_test),
+          batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    else:
+        train_data, val_data = get_rec()
+    
     trainer = gluon.Trainer(net.collect_params(), optimizer, optimizer_params)
     if opt.label_smoothing:
         L = gluon.loss.SoftmaxCrossEntropyLoss(sparse_label=False)
@@ -248,9 +252,7 @@ def train(epochs, ctx):
     for epoch in range(epochs):
         tic = time.time()
         acc_top1.reset()
-        acc_top5.reset()
         btic = time.time()
-        train_loss = 0
     
         num_batch = math.ceil(1281167/batch_size)
 
@@ -264,43 +266,39 @@ def train(epochs, ctx):
             freeze_bn(net, True)
 
         for i, batch in enumerate(train_data):
-            data = gluon.utils.split_and_load(batch.data[0], ctx_list=ctx, batch_axis=0)
-            label = gluon.utils.split_and_load(batch.label[0], ctx_list=ctx, batch_axis=0)
+            dataarg = batch.data[0] if opt.recio else batch[0]
+            labelarg = batch.label[0] if opt.recio else batch[1]
+            data = gluon.utils.split_and_load(dataarg, ctx_list=ctx, batch_axis=0)
+            label = gluon.utils.split_and_load(labelarg, ctx_list=ctx, batch_axis=0)
             if opt.label_smoothing:
                 label_smooth = smooth(label, classes)
             else:
                 label_smooth = label
             with ag.record():
-                outputs = [net(X) for X in data]
+                outputs = [net(X.astype(opt.dtype, copy=False)) for X in data]
                 loss = [L(yhat, y) for yhat, y in zip(outputs, label_smooth)]
             ag.backward(loss)
             trainer.step(batch_size)
             acc_top1.update(label, outputs)
-            acc_top5.update(label, outputs)
-            train_loss += sum([l.sum().asscalar() for l in loss])
+          #  train_loss += sum([l.sum().asscalar() for l in loss])
             if opt.log_interval and not (i+1)%opt.log_interval:
                 _, top1 = acc_top1.get()
-                _, top5 = acc_top5.get()
-                err_top1, err_top5 = (1-top1, 1-top5)
-                logging.info('Epoch[%d] Batch [%d]\tSpeed: %f samples/sec\ttop1-err=%f\ttop5-err=%f'%(
-                             epoch, i, batch_size*opt.log_interval/(time.time()-btic), err_top1, err_top5))
+                err_top1 = 1-top1
+                logging.info('Epoch[%d] Batch [%d]\tSpeed: %f samples/sec\ttop1-err=%f'%(
+                             epoch, i, batch_size*opt.log_interval/(time.time()-btic), err_top1))
                 btic = time.time()
 
         _, top1 = acc_top1.get()
-        _, top5 = acc_top5.get()
-        err_top1, err_top5 = (1-top1, 1-top5)
-        train_loss /= num_batch * batch_size
+        err_top1 = 1-top1
+        #train_loss /= num_batch * batch_size
 
-        err_top1_val, err_top5_val = test(ctx, val_data)
-        train_history.update([err_top1, err_top5, err_top1_val, err_top5_val])
+        err_top1_val = test(ctx, val_data)
+        train_history.update([err_top1, err_top1_val])
         train_history.plot(['training-top1-err', 'validation-top1-err'],
                            save_path='%s/%s_top1.png'%(plot_path, model_name))
-        train_history.plot(['training-top5-err', 'validation-top5-err'],
-                           save_path='%s/%s_top5.png'%(plot_path, model_name))
-
-        logging.info('[Epoch %d] training: err-top1=%f err-top5=%f loss=%f'%(epoch, err_top1, err_top5, train_loss))
+        logging.info('[Epoch %d] training: err-top1=%f'%(epoch, err_top1))
         logging.info('[Epoch %d] time cost: %f'%(epoch, time.time()-tic))
-        logging.info('[Epoch %d] validation: err-top1=%f err-top5=%f'%(epoch, err_top1_val, err_top5_val))
+        logging.info('[Epoch %d] validation: err-top1=%f'%(epoch, err_top1_val))
 
         if err_top1_val < best_val_score and epoch > 50:
             best_val_score = err_top1_val
@@ -331,9 +329,7 @@ def train_dummy(ctx):
         L = gluon.loss.SoftmaxCrossEntropyLoss()
 
     acc_top1.reset()
-    acc_top5.reset()
     btic = time.time()
-    train_loss = 0
     num_batch = 1000
     warm_up = 100
 
@@ -350,8 +346,7 @@ def train_dummy(ctx):
         ag.backward(loss)
         trainer.step(batch_size)
         acc_top1.update(label, outputs)
-        acc_top5.update(label, outputs)
-        train_loss += sum([l.sum().asscalar() for l in loss])
+        #train_loss += sum([l.sum().asscalar() for l in loss])
 
         if opt.log_interval and not (i+1)%opt.log_interval:
             logging.info('Batch [%d]\tSpeed: %f samples/sec'%(
@@ -368,9 +363,6 @@ def main():
     if opt.dummy:
         train_dummy(context)
     else:
-        #train_data, val_data = get_rec()
-        #print(test(context, train_data))
-        #print(test(context, val_data))
         train(opt.num_epochs, context)
 
 if __name__ == '__main__':
