@@ -191,7 +191,9 @@ def fit(args, network, data_loader, **kwargs):
         symbol=network
     )
 
-    lr_scheduler = lr_scheduler
+    epoch_size = int(int(args.num_examples/args.batch_size)/kv.num_workers)
+    if args.warmup_epochs > 0:
+        lr_scheduler = mx.lr_scheduler.WarmupScheduler(0,epoch_size * args.warmup_epochs, lr_scheduler)
     optimizer_params = {
         'learning_rate': lr,
         'wd': args.wd,
@@ -284,6 +286,7 @@ def fit(args, network, data_loader, **kwargs):
     if 'batch_end_callback' in kwargs:
         cbs = kwargs['batch_end_callback']
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
+    train = mx.io.ResizeIter(train, math.ceil(int(args.num_examples/kv.num_workers)/args.batch_size))
     # run
     model.fit(train,
               begin_epoch=args.load_epoch if args.load_epoch else 0,
