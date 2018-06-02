@@ -23,11 +23,12 @@ import re
 import math
 import mxnet as mx
 
+from gluoncv.utils import makedirs
 
 def _get_lr_scheduler(args, kv):
     if 'lr_factor' not in args or args.lr_factor >= 1:
         return (args.lr, None)
-    epoch_size = args.num_examples / args.batch_size
+    epoch_size = int(args.num_examples / args.batch_size)
     if 'dist' in args.kv_store:
         epoch_size /= kv.num_workers
     begin_epoch = args.load_epoch if args.load_epoch else 0
@@ -133,6 +134,8 @@ def add_fit_args(parser):
                        help='the epochs to ramp-up lr to scaled large-batch value')
     train.add_argument('--warmup-strategy', type=str, default='linear',
                        help='the ramping-up strategy for large batch sgd')
+    train.add_argument('--logging-dir', type=str, default='logs')
+    train.add_argument('--log', type=str, default='')
     return train
 
 
@@ -150,9 +153,13 @@ def fit(args, network, data_loader, **kwargs):
                                      'threshold': args.gc_threshold})
 
     # logging
-    head = '%(asctime)-15s Node[' + str(kv.rank) + '] %(message)s'
-    logging.basicConfig(level=logging.DEBUG, format=head)
-    logging.info('start with arguments %s', args)
+#    head = '%(asctime)-15s Node[' + str(kv.rank) + '] %(message)s'
+    logging_handlers = [logging.StreamHandler()]
+    if args.log:
+        makedirs(args.logging_dir)
+        logging_handlers.append(logging.FileHandler('%s%s'%(args.logging_dir, args.log), mode='w'))
+    logging.basicConfig(level=logging.DEBUG, handlers=logging_handlers)
+    logging.info(args)
 
     # data iterators
     (train, val) = data_loader(args, kv)

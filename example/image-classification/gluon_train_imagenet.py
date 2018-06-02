@@ -3,6 +3,7 @@ matplotlib.use('Agg')
 
 import argparse, time, logging
 import math
+import re
 import mxnet as mx
 import numpy as np
 from mxnet import gluon, nd
