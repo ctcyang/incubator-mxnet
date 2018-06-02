@@ -338,6 +338,8 @@ def test(ctx, val_data):
         outputs = [net(X.astype(opt.dtype, copy=False)) for X in data]
         acc_top1.update(label, outputs)
     _, top1 = acc_top1.get()
+    if opt.recio:
+        val_data.reset()
     return 1-top1
 
 def get_rec():
@@ -458,6 +460,9 @@ def train(epochs, ctx):
         _, top1 = acc_top1.get()
         err_top1 = 1-top1
         #train_loss /= num_batch * batch_size
+
+        if opt.recio:
+            train_data.reset()
 
         err_top1_val = test(ctx, val_data)
         train_history.update([err_top1, err_top1_val])
