@@ -290,6 +290,9 @@ else:
 
 plot_path = opt.save_plot_dir
 
+if plot_path:
+    makedirs(plot_path)
+
 def dataloader_transforms():
     normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     jitter_param = 0.0 if model_name.startswith('mobilenet') else 0.4
