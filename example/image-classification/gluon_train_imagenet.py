@@ -454,8 +454,8 @@ def train(epochs, ctx):
             if opt.log_interval and not (i+1)%opt.log_interval:
                 _, top1 = acc_top1.get()
                 err_top1 = 1-top1
-                logging.info('Epoch[%d] Batch [%d]\tSpeed: %f samples/sec\ttop1-err=%f'%(
-                             epoch, i, batch_size*opt.log_interval/(time.time()-btic), err_top1))
+                logging.info('Epoch[%d] Batch [%d]\tSpeed: %f samples/sec\ttop1-err=%f\tlr=%f'%(
+                             epoch, i, batch_size*opt.log_interval/(time.time()-btic), err_top1, trainer.learning_rate))
                 btic = time.time()
 
         _, top1 = acc_top1.get()
