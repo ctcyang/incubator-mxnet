@@ -2,7 +2,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 import argparse, time, logging
-
+import math
 import mxnet as mx
 import numpy as np
 from mxnet import gluon, nd
@@ -38,11 +38,9 @@ parser.add_argument('--momentum', type=float, default=0.9,
                     help='momentum value for optimizer, default is 0.9.')
 parser.add_argument('--wd', type=float, default=0.0001,
                     help='weight decay rate. default is 0.0001.')
-parser.add_argument('--lr-decay', type=float, default=0.1,
+parser.add_argument('--lr-factor', type=float, default=0.1,
                     help='decay rate of learning rate. default is 0.1.')
-parser.add_argument('--lr-decay-period', type=int, default=0,
-                    help='interval for periodic learning rate decays. default is 0 to disable.')
-parser.add_argument('--lr-decay-epoch', type=str, default='30,60,80')
+parser.add_argument('--lr-step-epochs', type=str, default='30,60,80')
 parser.add_argument('--mode', type=str, default='hybrid',
                     help='mode in which to train the model. options are symbolic, imperative, hybrid')
 parser.add_argument('--model', type=str, required=True,
@@ -84,9 +82,15 @@ parser.add_argument('--max-random-shear-ratio', type=float, default=0)
 parser.add_argument('--data-nthreads', type=int, default=40)
 parser.add_argument('--kv-store', type=str, default='device')
 parser.add_argument('--warmup-epochs', type=int, default=5)
+parser.add_argument('--log', type=str, default='')
 opt = parser.parse_args()
 
-logging.basicConfig(level=logging.INFO)
+logging_handlers = [logging.StreamHandler()]
+if opt.log:
+    makedirs(opt.logging_dir)
+    logging_handlers.append(logging.FileHandler('%s/%s'%(opt.logging_dir, opt.log), mode='w'))
+
+logging.basicConfig(level=logging.INFO, handlers=logging_handlers)
 logging.info(opt)
 
 batch_size = opt.batch_size
@@ -94,13 +98,150 @@ classes = 1000
 
 num_gpus = len(opt.gpus.split(','))
 batch_size *= max(1, num_gpus)
-
+num_examples = 1281167
+num_batch = math.ceil(num_examples/batch_size)
 context = [mx.gpu(int(i)) for i in opt.gpus.split(',')]
 num_workers = opt.num_workers
+kv = mx.kvstore.create(opt.kv_store)
 
-lr_decay = opt.lr_decay
-lr_decay_period = opt.lr_decay_period
-lr_decay_epoch = [int(i) for i in opt.lr_decay_epoch.split(',')] + [np.inf]
+class LRScheduler(object):
+    """Base class of a learning rate scheduler.
+
+    A scheduler returns a new learning rate based on the number of updates that have
+    been performed.
+
+    Parameters
+    ----------
+    base_lr : float, optional
+        The initial learning rate.
+    """
+    def __init__(self, base_lr=0.01):
+        self.base_lr = base_lr
+
+    def __call__(self, num_update):
+        """Return a new learning rate.
+
+        The ``num_update`` is the upper bound of the number of updates applied to
+        every weight.
+
+        Assume the optimizer has updated *i*-th weight by *k_i* times, namely
+        ``optimizer.update(i, weight_i)`` is called by *k_i* times. Then::
+
+            num_update = max([k_i for all i])
+
+        Parameters
+        ----------
+        num_update: int
+            the maximal number of updates applied to a weight.
+        """
+        raise NotImplementedError("must override this")
+
+class MultiFactorScheduler(LRScheduler):
+    """Reduce the learning rate by given a list of steps.
+
+    Assume there exists *k* such that::
+
+       step[k] <= num_update and num_update < step[k+1]
+
+    Then calculate the new learning rate by::
+
+       base_lr * pow(factor, k+1)
+
+    Parameters
+    ----------
+    step: list of int
+        The list of steps to schedule a change
+    factor: float
+        The factor to change the learning rate.
+    """
+    def __init__(self, step, factor=1):
+        super(MultiFactorScheduler, self).__init__()
+        assert isinstance(step, list) and len(step) >= 1
+        for i, _step in enumerate(step):
+            if i != 0 and step[i] <= step[i-1]:
+                raise ValueError("Schedule step must be an increasing integer list")
+            if _step < 1:
+                raise ValueError("Schedule step must be greater or equal than 1 round")
+        if factor > 1.0:
+            raise ValueError("Factor must be no more than 1 to make lr reduce")
+        self.step = step
+        self.cur_step_ind = 0
+        self.factor = factor
+        self.count = 0
+
+    def __call__(self, num_update):
+        # NOTE: use while rather than if  (for continuing training via load_epoch)
+        while self.cur_step_ind <= len(self.step)-1:
+            if num_update > self.step[self.cur_step_ind]:
+                self.count = self.step[self.cur_step_ind]
+                self.cur_step_ind += 1
+                self.base_lr *= self.factor
+                logging.info("Update[%d]: Change learning rate to %0.5e",
+                             num_update, self.base_lr)
+            else:
+                return self.base_lr
+        return self.base_lr
+
+class WarmupScheduler(LRScheduler):
+    """Implement linear warmup
+
+    base_lr * pow(1 - num_update/max_steps, poly)
+
+    Parameters
+    ----------
+    lr_begin: float
+                  learning rate at the first iteration of warmup
+    warmup_steps: int
+                  number of warmup steps
+        scheduler: LRScheduler
+                  scheduler following the warmup
+    """
+    def __init__(self, lr_begin, warmup_steps, scheduler, **kwargs):
+        super(WarmupScheduler, self).__init__()
+        self.lr_begin = lr_begin
+        self.warmup_steps = warmup_steps
+        self.scheduler = scheduler
+        self.lrs_updates = {}
+    def __call__(self, num_update):
+        if num_update < self.warmup_steps:
+            self.base_lr = self.scheduler.base_lr
+            if num_update not in self.lrs_updates:
+                l = self.lr_begin + (self.base_lr - self.lr_begin) * float(num_update)/float(self.warmup_steps)
+                self.lrs_updates[num_update] = l
+                #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
+            else:
+                l = self.lrs_updates[num_update]
+        if num_update not in self.lrs_updates:
+            self.lrs_updates[num_update] = self.scheduler(num_update - self.warmup_steps)
+            #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
+        return self.lrs_updates[num_update]
+
+
+def get_lr_scheduler():
+    epoch_size = int(int(num_examples / batch_size) / kv.num_workers)
+   
+    if 'pow' in opt.lr_step_epochs:
+        lr = opt.lr
+        max_up = opt.num_epochs * epoch_size
+        pwr = float(re.sub('pow[- ]*', '', opt.lr_step_epochs))
+        lr_sched = mx.lr_scheduler.PolyScheduler(max_up, lr, pwr)
+    else:
+        step_epochs = [int(l) for l in opt.lr_step_epochs.split(',')]
+        lr = opt.lr
+        begin_epoch = 0
+        for s in step_epochs:
+            if begin_epoch >= s:
+                lr *= opt.lr_factor
+        if lr != opt.lr:
+            logging.info('Adjust learning rate to %e for epoch %d', lr, begin_epoch)
+        steps = [epoch_size * (x - begin_epoch) for x in step_epochs if x - begin_epoch > 0]
+        lr_sched = mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=opt.lr_factor)
+    #lr_decay = opt.lr_decay
+    #lr_decay_period = opt.lr_decay_period
+    #lr_decay_epoch = [int(i) for i in opt.lr_decay_epoch.split(',')] + [np.inf]
+    if opt.warmup_epochs > 0:
+        lr_sched = mx.lr_scheduler.WarmupScheduler(0, epoch_size * opt.warmup_epochs, lr_sched)
+    return lr_sched
 
 model_name = opt.model
 
@@ -111,9 +252,7 @@ elif model_name.startswith('resnext'):
     kwargs['use_se'] = opt.use_se
 
 optimizer = opt.optimizer
-optimizer_params = {'learning_rate': opt.lr, 'wd': opt.wd, 'momentum': opt.momentum, 'multi_precision':True}
-
-kv = mx.kvstore.create(opt.kv_store)
+optimizer_params = {'learning_rate': opt.lr, 'wd': opt.wd, 'momentum': opt.momentum, 'multi_precision':True, 'lr_scheduler': get_lr_scheduler()}
 
 net = get_model(model_name, **kwargs)
 net.initialize(mx.init.MSRAPrelu(), ctx=context)
@@ -191,7 +330,7 @@ def test(ctx, val_data):
     for i, batch in enumerate(val_data):
         dataarg = batch.data[0] if opt.recio else batch[0]
         labelarg = batch.label[0] if opt.recio else batch[1]
-        data = gluon.utils.split_and_load(batcharg, ctx_list=ctx, batch_axis=0)
+        data = gluon.utils.split_and_load(dataarg, ctx_list=ctx, batch_axis=0)
         label = gluon.utils.split_and_load(labelarg, ctx_list=ctx, batch_axis=0)
         outputs = [net(X.astype(opt.dtype, copy=False)) for X in data]
         acc_top1.update(label, outputs)
@@ -274,22 +413,18 @@ def train(epochs, ctx):
     else:
         L = gluon.loss.SoftmaxCrossEntropyLoss()
 
-    lr_decay_count = 0
-
+#    lr_decay_count = 0
     best_val_score = 1
-    import math
     for epoch in range(epochs):
         tic = time.time()
         acc_top1.reset()
         btic = time.time()
-    
-        num_batch = math.ceil(1281167/batch_size)
-
-        if lr_decay_period and epoch and epoch % lr_decay_period == 0:
-            trainer.set_learning_rate(trainer.learning_rate*lr_decay)
-        elif lr_decay_period == 0 and epoch == lr_decay_epoch[lr_decay_count]:
-            trainer.set_learning_rate(trainer.learning_rate*lr_decay)
-            lr_decay_count += 1
+   
+        #if lr_decay_period and epoch and epoch % lr_decay_period == 0:
+        #    trainer.set_learning_rate(trainer.learning_rate*lr_decay)
+        #elif lr_decay_period == 0 and epoch == lr_decay_epoch[lr_decay_count]:
+        #    trainer.set_learning_rate(trainer.learning_rate*lr_decay)
+        #    lr_decay_count += 1
 
         if opt.freeze_bn and epoch == epochs - 10:
             freeze_bn(net, True)
