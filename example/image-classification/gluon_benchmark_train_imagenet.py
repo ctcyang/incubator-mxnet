@@ -454,33 +454,34 @@ def train(epochs, ctx):
             if opt.log_interval and not (i+1)%opt.log_interval:
                 _, top1 = acc_top1.get()
                 err_top1 = 1-top1
-                logging.info('Epoch[%d] Batch [%d]\tSpeed: %f samples/sec\ttop1-acc=%f\tlr=%f'%(
-                             epoch, i, batch_size*opt.log_interval/(time.time()-btic), top1, trainer.learning_rate))
+                logging.info('Epoch[%d] Batch [%d]\tSpeed: %f , Accuracy:%f'%(
+                             epoch, i, batch_size*opt.log_interval/(time.time()-btic), top1))
                 btic = time.time()
 
-        _, top1 = acc_top1.get()
-        err_top1 = 1-top1
+        #_, top1 = acc_top1.get()
+        #err_top1 = 1-top1
         #train_loss /= num_batch * batch_size
 
         if opt.recio:
             train_data.reset()
 
-        err_top1_val = test(ctx, val_data)
-        train_history.update([err_top1, err_top1_val])
-        train_history.plot(['training-top1-err', 'validation-top1-err'], save_path='%s/%s_top1.png'%(plot_path, opt.log))
-        logging.info('[Epoch %d] training: acc-top1=%f'%(epoch, top1))
+        #err_top1_val = test(ctx, val_data)
+        #train_history.update([err_top1, err_top1_val])
+        #train_history.plot(['training-top1-err', 'validation-top1-err'], save_path='%s/%s_top1.png'%(plot_path, model_name))
+        #logging.info('[Epoch %d] training: err-top1=%f'%(epoch, err_top1))
         logging.info('[Epoch %d] time cost: %f'%(epoch, time.time()-tic))
-        logging.info('[Epoch %d] validation: acc-top1=%f'%(epoch, 1 - err_top1_val))
+        #logging.info('[Epoch %d] validation: err-top1=%f'%(epoch, err_top1_val))
 
-        if err_top1_val < best_val_score and epoch > 50:
-            best_val_score = err_top1_val
-            net.save_params('%s/%.4f-imagenet-%s-%d-best.params'%(save_dir, best_val_score, model_name, epoch))
+        #if err_top1_val < best_val_score and epoch > 50:
+        #    best_val_score = err_top1_val
+        #    net.save_params('%s/%.4f-imagenet-%s-%d-best.params'%(save_dir, best_val_score, model_name, epoch))
 
-        if save_frequency and save_dir and (epoch + 1) % save_frequency == 0:
-            net.save_params('%s/imagenet-%s-%d.params'%(save_dir, model_name, epoch))
-
-    if save_frequency and save_dir:
-        net.save_params('%s/imagenet-%s-%d.params'%(save_dir, model_name, epochs-1))
+        #if save_frequency and save_dir and (epoch + 1) % save_frequency == 0:
+        #    net.save_params('%s/imagenet-%s-%d.params'%(save_dir, model_name, epoch))
+    err_top1_val = test(ctx,val_data)
+    logging.info('Final validation top1 err: %f', err_top1_val)
+    #if save_frequency and save_dir:
+    #    net.save_params('%s/imagenet-%s-%d.params'%(save_dir, model_name, epochs-1))
 
 def train_dummy(ctx):
     if isinstance(ctx, mx.Context):
