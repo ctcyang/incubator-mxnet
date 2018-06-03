@@ -82,7 +82,7 @@ parser.add_argument('--max-rotate-angle',type=float, default=0)
 parser.add_argument('--max-random-shear-ratio', type=float, default=0)
 parser.add_argument('--data-nthreads', type=int, default=40)
 parser.add_argument('--kv-store', type=str, default='device')
-parser.add_argument('--warmup-epochs', type=int, default=5)
+parser.add_argument('--warmup-epochs', type=int, default=0)
 parser.add_argument('--log', type=str, default='')
 opt = parser.parse_args()
 
