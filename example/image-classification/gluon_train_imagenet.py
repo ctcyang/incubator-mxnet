@@ -84,6 +84,7 @@ parser.add_argument('--data-nthreads', type=int, default=40)
 parser.add_argument('--kv-store', type=str, default='device')
 parser.add_argument('--warmup-epochs', type=int, default=0)
 parser.add_argument('--log', type=str, default='')
+parser.add_argument('--bn-gamma-init0', action='store_true')
 opt = parser.parse_args()
 
 logging_handlers = [logging.StreamHandler()]
@@ -251,6 +252,8 @@ if model_name.startswith('vgg'):
     kwargs['batch_norm'] = opt.batch_norm
 elif model_name.startswith('resnext'):
     kwargs['use_se'] = opt.use_se
+elif model_name.startswith('resnet'):
+    kwargs['last_gamma'] = opt.bn_gamma_init0
 
 optimizer = opt.optimizer
 optimizer_params = {'learning_rate': opt.lr, 'wd': opt.wd, 'momentum': opt.momentum, 'multi_precision':True, 'lr_scheduler': get_lr_scheduler()}
