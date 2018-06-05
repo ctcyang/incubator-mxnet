@@ -22,9 +22,9 @@ import numpy as np
 
 def add_data_args(parser):
     data = parser.add_argument_group('Data', 'the input images')
-    data.add_argument('--data-train', type=str, help='the training data')
-    data.add_argument('--data-train-idx', type=str, default='', help='the index of training data')
-    data.add_argument('--data-val', type=str, help='the validation data')
+    data.add_argument('--data-train', type=str, help='the training data', default='/media/ramdisk/pass-through/train-passthrough.rec')
+    data.add_argument('--data-train-idx', type=str, help='the index of training data', default='/media/ramdisk/pass-through/train-passthrough.idx')
+    data.add_argument('--data-val', type=str, help='the validation data', default='/media/ramdisk/pass-through/val-passthrough.rec')
     data.add_argument('--data-val-idx', type=str, default='', help='the index of validation data')
     data.add_argument('--rgb-mean', type=str, default='123.68,116.779,103.939',
                       help='a tuple of size 3 for the mean rgb')
