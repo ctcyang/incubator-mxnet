@@ -219,10 +219,8 @@ class WarmupScheduler(LRScheduler):
                 l = self.lr_begin + (self.base_lr - self.lr_begin) * float(num_update)/float(self.warmup_steps)
                 self.lrs_updates[num_update] = l
                 #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
-            else:
-                l = self.lrs_updates[num_update]
         if num_update not in self.lrs_updates:
-            self.lrs_updates[num_update] = self.scheduler(num_update - self.warmup_steps)
+            self.lrs_updates[num_update] = self.scheduler(num_update)
             #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
         return self.lrs_updates[num_update]
 
