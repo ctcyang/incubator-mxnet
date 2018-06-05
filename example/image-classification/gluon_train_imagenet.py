@@ -226,7 +226,7 @@ class WarmupScheduler(LRScheduler):
 
 
 def get_lr_scheduler():
-    epoch_size = int(int(num_examples / batch_size) / kv.num_workers)
+    epoch_size = math.ceil(int(num_examples / kv.num_workers) / kv.num_workers)
    
     if 'pow' in opt.lr_step_epochs:
         lr = opt.lr
