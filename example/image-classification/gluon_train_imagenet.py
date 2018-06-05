@@ -163,7 +163,7 @@ class MultiFactorScheduler(LRScheduler):
     factor: float
         The factor to change the learning rate.
     """
-    def __init__(self, step, factor=1):
+    def __init__(self, base_lr, step, factor=1):
         super(MultiFactorScheduler, self).__init__()
         assert isinstance(step, list) and len(step) >= 1
         for i, _step in enumerate(step):
@@ -177,6 +177,7 @@ class MultiFactorScheduler(LRScheduler):
         self.cur_step_ind = 0
         self.factor = factor
         self.count = 0
+        self.base_lr = base_lr
 
     def __call__(self, num_update):
         # NOTE: use while rather than if  (for continuing training via load_epoch)
@@ -244,12 +245,12 @@ def get_lr_scheduler():
         if lr != opt.lr:
             logging.info('Adjust learning rate to %e for epoch %d', lr, begin_epoch)
         steps = [epoch_size * (x - begin_epoch) for x in step_epochs if x - begin_epoch > 0]
-        lr_sched = mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=opt.lr_factor)
+        lr_sched = MultiFactorScheduler(base_lr=opt.lr, step=steps, factor=opt.lr_factor)
     #lr_decay = opt.lr_decay
     #lr_decay_period = opt.lr_decay_period
     #lr_decay_epoch = [int(i) for i in opt.lr_decay_epoch.split(',')] + [np.inf]
     if opt.warmup_epochs > 0:
-        lr_sched = mx.lr_scheduler.WarmupScheduler(0, opt.lr, epoch_size * opt.warmup_epochs, lr_sched)
+        lr_sched = WarmupScheduler(0, opt.lr, epoch_size * opt.warmup_epochs, lr_sched)
     return lr_sched
 
 model_name = opt.model
