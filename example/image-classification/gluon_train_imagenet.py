@@ -422,7 +422,7 @@ def train(epochs, ctx):
     else:
         train_data, val_data = get_rec()
     
-    trainer = gluon.Trainer(net.collect_params(), optimizer, optimizer_params)
+    trainer = gluon.Trainer(net.collect_params(), optimizer, optimizer_params, kvstore=kv)
     if opt.label_smoothing:
         L = gluon.loss.SoftmaxCrossEntropyLoss(sparse_label=False)
     else:
