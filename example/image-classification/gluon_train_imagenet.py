@@ -213,12 +213,13 @@ class WarmupScheduler(LRScheduler):
         self.scheduler = scheduler
         self.lrs_updates = {}
         self.base_lr = lr_final
+        logging.info('warmupsteps %d', warmup_steps)
     def __call__(self, num_update):
         if num_update < self.warmup_steps:
             if num_update not in self.lrs_updates:
                 l = self.lr_begin + (self.base_lr - self.lr_begin) * float(num_update)/float(self.warmup_steps)
                 self.lrs_updates[num_update] = l
-                #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
+              #  logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
         if num_update not in self.lrs_updates:
             self.lrs_updates[num_update] = self.scheduler(num_update)
             #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
@@ -226,8 +227,9 @@ class WarmupScheduler(LRScheduler):
 
 
 def get_lr_scheduler():
-    epoch_size = math.ceil(int(num_examples / kv.num_workers) / kv.num_workers)
-   
+    epoch_size = math.ceil(int(num_examples / kv.num_workers) / batch_size)
+
+    logging.info('epoch_size is %d', epoch_size) 
     if 'pow' in opt.lr_step_epochs:
         lr = opt.lr
         max_up = opt.num_epochs * epoch_size
@@ -406,6 +408,8 @@ def get_rec():
         rand_mirror         = False,
         num_parts           = nworker,
         part_index          = rank)
+    epoch_size = math.ceil(int(num_examples / kv.num_workers) / batch_size)
+    train = mx.io.ResizeIter(train, epoch_size)
     return train,val
 
 def train(epochs, ctx):
@@ -422,7 +426,7 @@ def train(epochs, ctx):
     else:
         train_data, val_data = get_rec()
     
-    trainer = gluon.Trainer(net.collect_params(), optimizer, optimizer_params, kvstore=kv)
+    trainer = gluon.Trainer(net.collect_params(), optimizer, optimizer_params, kvstore=kv, update_on_kvstore=True)
     if opt.label_smoothing:
         L = gluon.loss.SoftmaxCrossEntropyLoss(sparse_label=False)
     else:
