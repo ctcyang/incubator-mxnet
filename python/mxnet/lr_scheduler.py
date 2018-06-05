@@ -183,15 +183,16 @@ class WarmupScheduler(LRScheduler):
         scheduler: LRScheduler
                   scheduler following the warmup
     """
-    def __init__(self, lr_begin, warmup_steps, scheduler, **kwargs):
+    def __init__(self, lr_begin, lr_final,warmup_steps, scheduler, **kwargs):
         super(WarmupScheduler, self).__init__()
         self.lr_begin = lr_begin
         self.warmup_steps = warmup_steps
         self.scheduler = scheduler
+        self.lr_final = lr_final
         self.lrs_updates = {}
     def __call__(self, num_update):
         if num_update < self.warmup_steps:
-            self.base_lr = self.scheduler.base_lr
+            self.base_lr = self.lr_final
             if num_update not in self.lrs_updates:
                 l = self.lr_begin + (self.base_lr - self.lr_begin) * float(num_update)/float(self.warmup_steps)
                 self.lrs_updates[num_update] = l

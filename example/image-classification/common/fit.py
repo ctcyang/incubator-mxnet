@@ -30,7 +30,7 @@ def _get_lr_scheduler(args, kv):
         return (args.lr, None)
     epoch_size = int(args.num_examples / args.batch_size)
     if 'dist' in args.kv_store:
-        epoch_size /= kv.num_workers
+        epoch_size = int(epoch_size/kv.num_workers)
     begin_epoch = args.load_epoch if args.load_epoch else 0
     if 'pow' in args.lr_step_epochs:
         lr = args.lr

@@ -84,15 +84,23 @@ parser.add_argument('--data-nthreads', type=int, default=40)
 parser.add_argument('--kv-store', type=str, default='device')
 parser.add_argument('--warmup-epochs', type=int, default=0)
 parser.add_argument('--log', type=str, default='')
+parser.add_argument('--log-dist-name', type=str, default='')
 parser.add_argument('--bn-gamma-init0', action='store_true')
 opt = parser.parse_args()
-
+kv = mx.kvstore.create(opt.kv_store)
 logging_handlers = [logging.StreamHandler()]
-if opt.log:
+if opt.log or opt.log_dist_name:
+    head = '%(asctime)-15s Node[' + str(kv.rank) + '] %(message)s'
+    if opt.log_dist_name:
+        log_filename = opt.log_dist_name
+    else:
+        log_filename = opt.log
     makedirs(opt.logging_dir)
-    logging_handlers.append(logging.FileHandler('%s/%s'%(opt.logging_dir, opt.log), mode='w'))
-
-logging.basicConfig(level=logging.INFO, handlers=logging_handlers)
+    logging_handlers.append(logging.FileHandler('%s/%s'%(opt.logging_dir, log_filename), mode='w'))
+if 'dist' in opt.kv_store:
+    logging.basicConfig(level=logging.INFO, handlers=logging_handlers, format=head)
+else:
+    logging.basicConfig(level=logging.INFO, handlers=logging_handlers)
 logging.info(opt)
 
 batch_size = opt.batch_size
@@ -104,7 +112,6 @@ num_examples = 1281167
 num_batch = math.ceil(num_examples/batch_size)
 context = [mx.gpu(int(i)) for i in opt.gpus.split(',')]
 num_workers = opt.num_workers
-kv = mx.kvstore.create(opt.kv_store)
 
 class LRScheduler(object):
     """Base class of a learning rate scheduler.
@@ -198,15 +205,15 @@ class WarmupScheduler(LRScheduler):
         scheduler: LRScheduler
                   scheduler following the warmup
     """
-    def __init__(self, lr_begin, warmup_steps, scheduler, **kwargs):
+    def __init__(self, lr_begin, lr_final, warmup_steps, scheduler, **kwargs):
         super(WarmupScheduler, self).__init__()
         self.lr_begin = lr_begin
         self.warmup_steps = warmup_steps
         self.scheduler = scheduler
         self.lrs_updates = {}
+        self.base_lr = lr_final
     def __call__(self, num_update):
         if num_update < self.warmup_steps:
-            self.base_lr = self.scheduler.base_lr
             if num_update not in self.lrs_updates:
                 l = self.lr_begin + (self.base_lr - self.lr_begin) * float(num_update)/float(self.warmup_steps)
                 self.lrs_updates[num_update] = l
@@ -242,7 +249,7 @@ def get_lr_scheduler():
     #lr_decay_period = opt.lr_decay_period
     #lr_decay_epoch = [int(i) for i in opt.lr_decay_epoch.split(',')] + [np.inf]
     if opt.warmup_epochs > 0:
-        lr_sched = mx.lr_scheduler.WarmupScheduler(0, epoch_size * opt.warmup_epochs, lr_sched)
+        lr_sched = mx.lr_scheduler.WarmupScheduler(0, opt.lr, epoch_size * opt.warmup_epochs, lr_sched)
     return lr_sched
 
 model_name = opt.model
