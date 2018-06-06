@@ -34,7 +34,7 @@ def add_data_args(parser):
                       help='the image shape feed into the network, e.g. (3,224,224)')
     data.add_argument('--num-classes', type=int, help='the number of classes')
     data.add_argument('--num-examples', type=int, help='the number of training examples')
-    data.add_argument('--data-nthreads', type=int, default=4,
+    data.add_argument('--data-nthreads', type=int, default=32,
                       help='number of threads for data decoding')
     data.add_argument('--benchmark', type=int, default=0,
                       help='if 1, then feed the network with synthetic data')
