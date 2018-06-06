@@ -28,9 +28,7 @@ from gluoncv.utils import makedirs
 def _get_lr_scheduler(args, kv):
     if 'lr_factor' not in args or args.lr_factor >= 1:
         return (args.lr, None)
-    epoch_size = int(args.num_examples / args.batch_size)
-    if 'dist' in args.kv_store:
-        epoch_size = int(epoch_size/kv.num_workers)
+    epoch_size = math.ceil(int(args.num_examples / kv.num_workers)/ args.batch_size)
     begin_epoch = args.load_epoch if args.load_epoch else 0
     if 'pow' in args.lr_step_epochs:
         lr = args.lr
@@ -49,7 +47,7 @@ def _get_lr_scheduler(args, kv):
 
     steps = [epoch_size * (x - begin_epoch)
              for x in step_epochs if x - begin_epoch > 0]
-    return (lr, mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=args.lr_factor))
+    return (lr, mx.lr_scheduler.MultiFactorScheduler(base_lr=args.lr, step=steps, factor=args.lr_factor))
 
 
 def _load_model(args, rank=0):

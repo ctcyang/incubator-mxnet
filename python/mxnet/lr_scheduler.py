@@ -109,8 +109,8 @@ class MultiFactorScheduler(LRScheduler):
     factor: float
         The factor to change the learning rate.
     """
-    def __init__(self, step, factor=1):
-        super(MultiFactorScheduler, self).__init__()
+    def __init__(self, base_lr, step, factor=1):
+        super(MultiFactorScheduler, self).__init__(base_lr)
         assert isinstance(step, list) and len(step) >= 1
         for i, _step in enumerate(step):
             if i != 0 and step[i] <= step[i-1]:
@@ -127,7 +127,7 @@ class MultiFactorScheduler(LRScheduler):
     def __call__(self, num_update):
         # NOTE: use while rather than if  (for continuing training via load_epoch)
         while self.cur_step_ind <= len(self.step)-1:
-            if num_update > self.step[self.cur_step_ind]:
+            if num_update >= self.step[self.cur_step_ind]:
                 self.count = self.step[self.cur_step_ind]
                 self.cur_step_ind += 1
                 self.base_lr *= self.factor
@@ -197,9 +197,7 @@ class WarmupScheduler(LRScheduler):
                 l = self.lr_begin + (self.base_lr - self.lr_begin) * float(num_update)/float(self.warmup_steps)
                 self.lrs_updates[num_update] = l
                 #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
-            else:
-                l = self.lrs_updates[num_update]
         if num_update not in self.lrs_updates:
-            self.lrs_updates[num_update] = self.scheduler(num_update - self.warmup_steps)
+            self.lrs_updates[num_update] = self.scheduler(num_update)
             #logging.info('lr for num_update ' + str(num_update) + ' is ' + str(self.lrs_updates[num_update]))
         return self.lrs_updates[num_update]
