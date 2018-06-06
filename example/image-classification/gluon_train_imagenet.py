@@ -114,35 +114,11 @@ context = [mx.gpu(int(i)) for i in opt.gpus.split(',')]
 num_workers = opt.num_workers
 
 class LRScheduler(object):
-    """Base class of a learning rate scheduler.
-
-    A scheduler returns a new learning rate based on the number of updates that have
-    been performed.
-
-    Parameters
-    ----------
-    base_lr : float, optional
-        The initial learning rate.
-    """
     def __init__(self, base_lr=0.01):
         self.base_lr = base_lr
+        self.num_update = 0
 
     def __call__(self, num_update):
-        """Return a new learning rate.
-
-        The ``num_update`` is the upper bound of the number of updates applied to
-        every weight.
-
-        Assume the optimizer has updated *i*-th weight by *k_i* times, namely
-        ``optimizer.update(i, weight_i)`` is called by *k_i* times. Then::
-
-            num_update = max([k_i for all i])
-
-        Parameters
-        ----------
-        num_update: int
-            the maximal number of updates applied to a weight.
-        """
         raise NotImplementedError("must override this")
 
 class MultiFactorScheduler(LRScheduler):
@@ -164,7 +140,7 @@ class MultiFactorScheduler(LRScheduler):
         The factor to change the learning rate.
     """
     def __init__(self, base_lr, step, factor=1):
-        super(MultiFactorScheduler, self).__init__()
+        super(MultiFactorScheduler, self).__init__(base_lr)
         assert isinstance(step, list) and len(step) >= 1
         for i, _step in enumerate(step):
             if i != 0 and step[i] <= step[i-1]:
@@ -176,8 +152,6 @@ class MultiFactorScheduler(LRScheduler):
         self.step = step
         self.cur_step_ind = 0
         self.factor = factor
-        self.count = 0
-        self.base_lr = base_lr
 
     def __call__(self, num_update):
         # NOTE: use while rather than if  (for continuing training via load_epoch)
@@ -264,7 +238,7 @@ elif model_name.startswith('resnet'):
     kwargs['last_gamma'] = opt.bn_gamma_init0
 
 optimizer = opt.optimizer
-optimizer_params = {'learning_rate': opt.lr, 'wd': opt.wd, 'momentum': opt.momentum, 'multi_precision':True, 'lr_scheduler': get_lr_scheduler()}
+optimizer_params = {'learning_rate': opt.lr, 'wd': opt.wd, 'momentum': opt.momentum, 'multi_precision':True}
 
 net = get_model(model_name, **kwargs)
 net.initialize(mx.init.MSRAPrelu(), ctx=context)
@@ -433,6 +407,8 @@ def train(epochs, ctx):
         L = gluon.loss.SoftmaxCrossEntropyLoss()
 
 #    lr_decay_count = 0
+    lr_scheduler = get_lr_scheduler()
+    num_update = 0
     best_val_score = 1
     for epoch in range(epochs):
         tic = time.time()
@@ -449,6 +425,9 @@ def train(epochs, ctx):
             freeze_bn(net, True)
 
         for i, batch in enumerate(train_data):
+            trainer.set_learning_rate(lr_scheduler(num_update))
+            num_update+=1
+            
             dataarg = batch.data[0] if opt.recio else batch[0]
             labelarg = batch.label[0] if opt.recio else batch[1]
             data = gluon.utils.split_and_load(dataarg, ctx_list=ctx, batch_axis=0)
