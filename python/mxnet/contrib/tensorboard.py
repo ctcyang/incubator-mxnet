@@ -101,11 +101,15 @@ class LogMetricsCallback(object):
                 if self.node_names is None or k in self.node_names:
                     if self.histogram_prefix is not None:
                         name = '%s-%s' % (self.histogram_prefix, k)
+                    else:
+                        name = k
                     self.summary_writer.add_histogram(name, v, global_step=iter_no, bins=self.bins)
             for k, v in aux.items():
                 if self.node_names is None or k in self.node_names:
                     if self.histogram_prefix is not None:
                         name = '%s-%s' % (self.histogram_prefix, k)
+                    else: 
+                        name = k
                     self.summary_writer.add_histogram(name, v, global_step=iter_no, bins=self.bins)
 
         return _callback
