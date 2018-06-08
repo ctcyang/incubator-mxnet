@@ -136,6 +136,10 @@ def add_fit_args(parser):
     train.add_argument('--log', type=str, default='')
     train.add_argument('--trust-coefficient', type=float, default=0.002)
     train.add_argument('--bn-gamma-init0', action='store_true')
+    train.add_argument('--epoch-size',type=int, default=0,
+                       help='set number of batches in an epoch. useful for debugging')
+    train.add_argument('--tensorboard', type=str, default='',
+                       help='log parameters to visualize in tensorboard every epoch. takes name to specify as tensorboard run. Empty means tensorboard logging is disabled')
     return train
 
 
@@ -185,7 +189,13 @@ def fit(args, network, data_loader, **kwargs):
 
     # save model
     checkpoint = _save_model(args, kv.rank)
-
+    epoch_end_callbacks = []
+    if checkpoint:
+        epoch_end_callbacks.append(checkpoint)
+    if args.tensorboard:
+        lm = mx.contrib.tensorboard.LogMetricsCallback("./logs/"+args.tensorboard)
+        epoch_end_callbacks.append(lm.node_histogram_visualization())
+    
     # devices for training
     devs = mx.cpu() if args.gpus is None or args.gpus == "" else [
         mx.gpu(int(i)) for i in args.gpus.split(',')]
@@ -296,7 +306,11 @@ def fit(args, network, data_loader, **kwargs):
     if 'batch_end_callback' in kwargs:
         cbs = kwargs['batch_end_callback']
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
-    train = mx.io.ResizeIter(train, math.ceil(int(args.num_examples/kv.num_workers)/args.batch_size))
+
+    if args.epoch_size:
+        train = mx.io.ResizeIter(train, args.epoch_size)
+    else:
+        train = mx.io.ResizeIter(train, math.ceil(int(args.num_examples/kv.num_workers)/args.batch_size))
     # run
     model.fit(train,
               begin_epoch=args.load_epoch if args.load_epoch else 0,
@@ -310,6 +324,6 @@ def fit(args, network, data_loader, **kwargs):
               arg_params=arg_params,
               aux_params=aux_params,
               batch_end_callback=batch_end_callbacks,
-              epoch_end_callback=checkpoint,
+              epoch_end_callback=epoch_end_callbacks,
               allow_missing=True,
               monitor=monitor)
