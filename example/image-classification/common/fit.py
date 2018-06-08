@@ -134,7 +134,6 @@ def add_fit_args(parser):
                        help='the ramping-up strategy for large batch sgd')
     train.add_argument('--logging-dir', type=str, default='logs')
     train.add_argument('--log', type=str, default='')
-    train.add_argument('--trust-coefficient', type=float, default=0.002)
     train.add_argument('--bn-gamma-init0', action='store_true')
     train.add_argument('--epoch-size',type=int, default=0,
                        help='set number of batches in an epoch. useful for debugging')
@@ -219,11 +218,9 @@ def fit(args, network, data_loader, **kwargs):
         'multi_precision': True}
 
     # Only a limited number of optimizers have 'momentum' property
-    has_momentum = {'sgd', 'dcasgd', 'nag', 'larc'}
+    has_momentum = {'sgd', 'dcasgd', 'nag'}
     if args.optimizer in has_momentum:
         optimizer_params['momentum'] = args.mom
-    if args.optimizer == 'larc':
-        optimizer_params['trust_coefficient'] = args.trust_coefficient
 
     monitor = mx.mon.Monitor(
         args.monitor, pattern=".*") if args.monitor > 0 else None
