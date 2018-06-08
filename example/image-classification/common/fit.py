@@ -198,7 +198,7 @@ def fit(args, network, data_loader, **kwargs):
         symbol=network
     )
 
-    epoch_size = int(int(args.num_examples/args.batch_size)/kv.num_workers)
+    epoch_size = math.ceil(int(args.num_examples/kv.num_workers)/args.batch_size)
     if args.warmup_epochs > 0:
         lr_scheduler = mx.lr_scheduler.WarmupScheduler(0, args.lr, epoch_size * args.warmup_epochs, lr_scheduler)
 
