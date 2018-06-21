@@ -79,8 +79,93 @@ class CommDeviceTree : public Comm {
   // src is sliced shape
   // copy_buf not sliced
   // merged not sliced
-  const NDArray& ReduceInner(int key, const std::vector<NDArray>& src, int root,
-                             int merged_row, int priority) {
+  const NDArray& ReduceMultiple(int key, const std::vector<NDArray>& src, 
+                                int root, int merged_row, int priority) {
+    std::vector<std::vector<NDArray>> reduce(devs_.size());
+
+    for (unsigned i = 0; i < devs_.size(); ++i) {
+    }
+    BufferEntry& random_buf = merge_buf_[0][key];
+    const NDArrayStorageType stype = random_buf.merged[0].storage_type();
+    std::vector<size_t>& topology = topology_[root];
+    NDArray buf_slice;
+
+    if (stype == kDefaultStorage) {
+
+      // Copy everything into buf.merged for each gpu
+      for (size_t i = 0; i < src.size(); ++i) {
+        int start = scan_[root][depth_  ];
+        int end   = scan_[root][depth_+1];
+
+        for (int j = start; j < end; ++j) {
+          int topo_id = topology[j];
+          BufferEntry& buf = merge_buf_[topo_id][key];
+
+          if ( devs_[topo_id] == src[i].ctx() ) {
+            CopyFromTo(src[i], &(buf.merged[merged_row]), priority);
+          }
+        }
+      }
+
+      for (int level = depth_; level > 0; --level) {
+        int start = scan_[root][level  ];
+        int end   = scan_[root][level+1];
+
+        unsigned is_dest = 0;
+        int      dest_id = 0;
+        for (int j = start; j < end; ++j) {
+          int topo_id = topology[j];
+          dest_id     = (is_dest==0) ? topo_id : dest_id;
+
+          BufferEntry& buf_dest = merge_buf_[dest_id][key];
+          BufferEntry& buf_from = merge_buf_[topo_id][key];
+
+          if (!is_dest) {
+            reduce[dest_id].push_back( buf_dest.merged[merged_row] );
+          } else {
+            if (dest_id != topo_id) {
+              CopyFromTo(buf_from.merged[merged_row],
+                  &(buf_dest.copy_buf[merged_row][is_dest-1]),
+                  priority);
+              reduce[dest_id].push_back( buf_dest.copy_buf[merged_row][is_dest-1] );
+            }
+          }
+
+          is_dest = (is_dest == static_cast<unsigned>(kBranch)-1) ?
+              0 : is_dest+1;
+        }
+
+        start = scan_[root][level-1];
+        end   = scan_[root][level  ];
+        for (int i = start; i < end; ++i) {
+          int gpu_id = topology[i];
+
+          // conditional to detect whether operation must be done
+          if ( reduce[gpu_id].size() > 1 ) {
+            BufferEntry& buf = merge_buf_[gpu_id][key];
+            ElementwiseSum(reduce[gpu_id], &(buf.merged[merged_row]), priority);
+          }
+        }
+
+        // reset
+        for (unsigned i = 0; i < devs_.size(); ++i) {
+          reduce[i].clear();
+        }
+      }
+    } else {
+      LOG(WARNING) << "Only dense input supported for now";
+    }
+
+    int topo_id = topology[0];
+    BufferEntry& buf = merge_buf_[topo_id][key];
+    return buf.merged[merged_row];
+  }
+
+  // src is sliced shape
+  // copy_buf not sliced
+  // merged not sliced
+  const NDArray& ReduceSingle(int key, const std::vector<NDArray>& src, 
+                              int root, int merged_row, int priority) {
     std::vector<std::vector<NDArray>> reduce(devs_.size());
 
     BufferEntry& random_buf = merge_buf_[0][key];
@@ -208,16 +293,14 @@ class CommDeviceTree : public Comm {
         // Do reduce-scatter (multiroot reduce)
         // input:  slice (src)
         // output: buf.merge_buf
-        for (unsigned i = 0; i < devs_.size(); ++i) {
-          ReduceInner(key, slice[i], i, i, priority);
-        }
+        ReduceMultiple(key, slice[i], priority);
 
         for (unsigned i = 0; i < devs_.size(); ++i) {
           BroadcastInner(key, *(broadcast_slice[i][i]), broadcast_slice[i], i, i, priority);
         }
       } else {
         int root = 0;
-        ReduceInner(key, src, root, 0, priority);
+        ReduceSingle(key, src, root, 0, priority);
 
         BufferEntry& buf = merge_buf_[root][key];
         return buf.merged[0];
