@@ -1,21 +1,11 @@
-#sudo apt-get install -y autoconf automake libtool nasm && \
-#JPEG_TURBO_VERSION=1.5.2 && \
-#wget -q -O - https://github.com/libjpeg-turbo/libjpeg-turbo/archive/${JPEG_TURBO_VERSION}.tar.gz | tar -xzf - && \
-#cd libjpeg-turbo-${JPEG_TURBO_VERSION} && \
-#autoreconf -fiv && \
-#./configure --enable-shared --prefix=/usr 2>&1 >/dev/null && \
-#sudo make -j"$(nproc)" install 2>&1 >/dev/null && \
-#rm -rf libjpeg-turbo-${JPEG_TURBO_VERSION}
-#cd ~
-#git clone --recursive https://github.com/rahul003/mxnet --branch rec-aug mxnet
-#git clone --recursive https://github.com/dmlc/gluon-cv
-#cd ~/gluon-cv
-#git apply --verbose ~/mxnet/example/image-classification/gamma-patch-gluoncv.diff
-#sudo /home/ubuntu/anaconda3/bin/python setup.py install
+echo $SHELL
+pwd
+echo $LD_LIBRARY_PATH
+which pip
+sudo dpkg -i nccl-repo-ubuntu1604-2.1.15-ga-cuda9.0_1-1_amd64.deb
+sudo apt-key add /var/nccl-repo-2.1.15-ga-cuda9.0/7fa2af80.pub
+sudo apt update
+sudo apt install libnccl2 libnccl-dev
 
-cd ~/mxnet
-git pull
-make clean
-make -j 64 USE_DIST_KVSTORE=1
-cd python/
-sudo /home/ubuntu/anaconda3/bin/python setup.py install
+sudo /home/ubuntu/anaconda3/bin/pip install tensorflow-gpu
+sudo LD_LIBRARY_PATH=/usr/lib64/openmpi/lib/:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib:/lib/:/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib:/usr/lib64/openmpi/lib/:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib:/lib/ HOROVOD_NCCL_HOME=/usr/lib/x86_64-linux-gnu HOROVOD_GPU_ALLREDUCE=NCCL /home/ubuntu/anaconda3/bin/pip install --no-cache-dir horovod
