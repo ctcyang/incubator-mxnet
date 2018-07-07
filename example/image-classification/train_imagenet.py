@@ -23,7 +23,7 @@ from common import find_mxnet, data, fit
 from common.util import download_file
 import mxnet as mx
 import numpy as np
-from gluoncv.model_zoo import get_model
+#from gluoncv.model_zoo import get_model
 if __name__ == '__main__':
     # parse args
     parser = argparse.ArgumentParser(description="train imagenet-1k",
