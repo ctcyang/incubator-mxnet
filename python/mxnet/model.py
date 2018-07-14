@@ -48,6 +48,11 @@ try:
 except ImportError:
     SKLEARN_INSTALLED = False
 
+try:
+    import horovod as hvd
+except ImportError:
+    HOROVOD_INSTALLED = False
+
 # Parameter to pass to batch_end_callback
 BatchEndParam = namedtuple('BatchEndParams',
                            ['epoch',
@@ -120,7 +125,10 @@ def _initialize_kvstore(kvstore, param_arrays, arg_params, param_names, update_o
         kvstore.init(name, arg_params[name])
 
         if update_on_kvstore:
-            kvstore.pull(name, param_on_devs, priority=-idx)
+            if 'horovod' not in kvstore:
+                kvstore.pull(name, param_on_devs, priority=-idx)
+            else:
+                hvd.broadcast(param_on_devs, 0, name)
 
 def _update_params_on_kvstore_nccl(param_arrays, grad_arrays, kvstore, param_names):
     """Perform update of param_arrays from grad_arrays on NCCL kvstore."""
@@ -162,12 +170,15 @@ def _update_params(param_arrays, grad_arrays, updater, num_device,
         if grad_list[0] is None:
             continue
         index = i
-        if kvstore:
+        if 'horovod' not in kvstore:
             name = param_names[index]
             # push gradient, priority is negative index
             kvstore.push(name, grad_list, priority=-index)
             # pull back the sum gradients, to the same locations.
             kvstore.pull(name, grad_list, priority=-index)
+        elif num_device is 1:
+            # use horovod to sum gradients
+            grad_list = hvd.allreduce(grad_list, name=name)
         for k, p in enumerate(zip(arg_list, grad_list)):
             # faked an index here, to make optimizer create diff
             # state for the same index but on diff devs, TODO(mli)
