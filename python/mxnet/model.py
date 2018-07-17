@@ -113,7 +113,7 @@ def _create_kvstore(kvstore, num_device, arg_params):
     else:
         raise TypeError('kvstore must be KVStore, str or None')
 
-    if kv is None:
+    if kv is None of 'horovod' in kvstore:
         update_on_kvstore = False
 
     return (kv, update_on_kvstore)
@@ -128,7 +128,7 @@ def _initialize_kvstore(kvstore, param_arrays, arg_params, param_names, update_o
             if 'horovod' not in kvstore:
                 kvstore.pull(name, param_on_devs, priority=-idx)
             else:
-                hvd.broadcast(param_on_devs, 0, name)
+                kvstore.broadcast(name, param_on_devs, 0, priority=-idx)
 
 def _update_params_on_kvstore_nccl(param_arrays, grad_arrays, kvstore, param_names):
     """Perform update of param_arrays from grad_arrays on NCCL kvstore."""

@@ -355,7 +355,7 @@ endif
 ifeq ($(USE_HOROVOD), 1)
         HOROVOD_PATH=$(ROOTDIR)/3rdparty/horovod
         include $(HOROVOD_PATH)/make/config.mk
-	CFLAGS += -I$(HOROVOD_PATH)
+	CFLAGS += -I$(HOROVOD_PATH) -DMXNET_USE_HOROVOD
 	#LIB_DEP += $(HOROVOD_PATH)/lib/libhorovod.a
 
 	# MPI
@@ -377,8 +377,10 @@ OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 
-HVDOBJ = $(addprefix $(HOROVOD_PATH)/build/common/, common.o mpi_message.o operations.o timeline.o)
-HVDOBJ += $(addprefix $(HOROVOD_PATH)/build/mxnet/, adapter.o cuda_util.o handle_manager.o mpi_ops.o ready_event.o tensor_util.o)
+ifeq ($(USE_HOROVOD),1)
+	OBJ += $(addprefix $(HOROVOD_PATH)/build/common/, common.o mpi_message.o operations.o timeline.o)
+	OBJ += $(addprefix $(HOROVOD_PATH)/build/mxnet/, adapter.o cuda_util.o handle_manager.o mpi_ops.o ready_event.o tensor_util.o)
+endif
 
 # extra operators
 ifneq ($(EXTRA_OPERATORS),)
@@ -418,7 +420,7 @@ LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(HVDOBJ) $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
 ifeq ($(USE_CUDA), 1)
-	CFLAGS += -I$(ROOTDIR)/3rdparty/cub
+	CFLAGS += -I$(ROOTDIR)/3rdparty/cub -DHAVE_CUDA=1
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
 	LDFLAGS += -lcufft
 	ifeq ($(ENABLE_CUDA_RTC), 1)
@@ -435,9 +437,9 @@ ifeq ($(USE_CUDA), 1)
 			LDFLAGS += -L$(USE_NCCL_PATH)/lib
 		endif
 		LDFLAGS += -lnccl
-		CFLAGS += -DMXNET_USE_NCCL=1
+		CFLAGS += -DMXNET_USE_NCCL=1 -DHAVE_NCCL=1
 	else
-		CFLAGS += -DMXNET_USE_NCCL=0
+		CFLAGS += -DMXNET_USE_NCCL=0 -DHAVE_NCCL=0
 	endif
 else
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-cpu

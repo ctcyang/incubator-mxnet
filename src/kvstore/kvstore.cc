@@ -34,6 +34,9 @@ std::atomic<int> mxnet::kvstore::KVStoreDist::customer_id_{0};
 #if MXNET_USE_NCCL
 #include "./kvstore_nccl.h"
 #endif  // MXNET_USE_NCCL
+#if MXNET_USE_HOROVOD
+#include "./kvstore_horovod.h"
+#endif  // MXNET_USE_HOROVOD
 
 namespace mxnet {
 
