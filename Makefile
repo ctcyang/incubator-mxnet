@@ -351,6 +351,22 @@ ifeq ($(USE_DIST_KVSTORE), 1)
 	LDFLAGS += $(PS_LDFLAGS_A)
 endif
 
+# Horovod
+ifeq ($(USE_HOROVOD), 1)
+        HOROVOD_PATH=$(ROOTDIR)/3rdparty/horovod
+        include $(HOROVOD_PATH)/make/config.mk
+	CFLAGS += -I$(HOROVOD_PATH)
+	#LIB_DEP += $(HOROVOD_PATH)/lib/libhorovod.a
+
+	# MPI
+	ifeq ($(USE_MPI_PATH),)
+        	USE_MPI_PATH := $(shell ./prepare_mpi.sh $(DEF_MPI_PATH))
+	endif
+
+	CFLAGS += -I$(USE_MPI_PATH)/include
+	LDFLAGS += -L$(USE_MPI_PATH)/lib -Wl,-rpath=$(USE_MPI_PATH)/lib -lmpi
+endif
+
 .PHONY: clean all extra-packages test lint docs clean_all rcpplint rcppexport roxygen\
 	cython2 cython3 cython cyclean
 
@@ -360,6 +376,9 @@ SRC = $(wildcard src/*/*/*/*.cc src/*/*/*.cc src/*/*.cc src/*.cc)
 OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
+
+HVDOBJ = $(addprefix $(HOROVOD_PATH)/build/common/, common.o mpi_message.o operations.o timeline.o)
+HVDOBJ += $(addprefix $(HOROVOD_PATH)/build/mxnet/, adapter.o cuda_util.o handle_manager.o mpi_ops.o ready_event.o tensor_util.o)
 
 # extra operators
 ifneq ($(EXTRA_OPERATORS),)
@@ -396,7 +415,7 @@ endif
 
 # all dep
 LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
-ALL_DEP = $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
+ALL_DEP = $(HVDOBJ) $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
 ifeq ($(USE_CUDA), 1)
 	CFLAGS += -I$(ROOTDIR)/3rdparty/cub
@@ -468,6 +487,16 @@ build/plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -Isrc/operator -c $< -o $@
 
+$(HOROVOD_PATH)/build/common/%.o: $(HOROVOD_PATH)/horovod/common/%.cc
+	echo "compiling common folder"
+	@mkdir -p $(@D)
+	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+
+$(HOROVOD_PATH)/build/mxnet/%.o: $(HOROVOD_PATH)/horovod/mxnet/%.cc
+	echo "compiling mxnet folder"
+	@mkdir -p $(@D)
+	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+
 # NOTE: to statically link libmxnet.a we need the option
 # --Wl,--whole-archive -lmxnet --Wl,--no-whole-archive
 lib/libmxnet.a: $(ALLX_DEP)
@@ -495,6 +524,11 @@ $(DMLC_CORE)/libdmlc.a: DMLCCORE
 
 DMLCCORE:
 	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a USE_SSE=$(USE_SSE) config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
+
+#$(HOROVOD_PATH)/lib/libhorovod.a: HOROVOD
+
+#HOROVOD:
+#	+ cd $(HOROVOD_PATH); $(MAKE) lib/libhorovod.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
 NNVM_INC = $(wildcard $(NNVM_PATH)/include/*/*.h)
 NNVM_SRC = $(wildcard $(NNVM_PATH)/src/*/*/*.cc $(NNVM_PATH)/src/*/*.cc $(NNVM_PATH)/src/*.cc)
@@ -649,6 +683,7 @@ clean: cyclean $(EXTRA_PACKAGES_CLEAN)
 	cd $(PS_PATH); $(MAKE) clean; cd -
 	cd $(NNVM_PATH); $(MAKE) clean; cd -
 	cd $(AMALGAMATION_PATH); $(MAKE) clean; cd -
+	cd $(HOROVOD_PATH); $(MAKE) clean; cd -
 	$(RM) -r  $(patsubst %, %/*.d, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.d, $(EXTRA_OPERATORS))
 	$(RM) -r  $(patsubst %, %/*.o, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.o, $(EXTRA_OPERATORS))
 else
@@ -659,6 +694,7 @@ clean: mkldnn_clean cyclean testclean $(EXTRA_PACKAGES_CLEAN)
 	cd $(PS_PATH); $(MAKE) clean; cd -
 	cd $(NNVM_PATH); $(MAKE) clean; cd -
 	cd $(AMALGAMATION_PATH); $(MAKE) clean; cd -
+	cd $(HOROVOD_PATH); $(MAKE) clean; cd -
 endif
 
 clean_all: clean
