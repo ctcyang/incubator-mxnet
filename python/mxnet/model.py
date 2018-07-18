@@ -113,7 +113,7 @@ def _create_kvstore(kvstore, num_device, arg_params):
     else:
         raise TypeError('kvstore must be KVStore, str or None')
 
-    if (kv is None) or ('allreduce' in kv.type):
+    if (kv is None) or ('horovod' in kv.type):
         update_on_kvstore = False
 
     return (kv, update_on_kvstore)
@@ -178,7 +178,7 @@ def _update_params(param_arrays, grad_arrays, updater, num_device,
             kvstore.pull(name, grad_list, priority=-index)
         elif num_device is 1:
             # use horovod to sum gradients
-            grad_list = hvd.allreduce(grad_list, name=name)
+            kvstore.pushpull(name, grad_list, grad_list, priority=-index)
         for k, p in enumerate(zip(arg_list, grad_list)):
             # faked an index here, to make optimizer create diff
             # state for the same index but on diff devs, TODO(mli)
