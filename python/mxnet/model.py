@@ -113,7 +113,7 @@ def _create_kvstore(kvstore, num_device, arg_params):
     else:
         raise TypeError('kvstore must be KVStore, str or None')
 
-    if kv is None of 'horovod' in kvstore:
+    if (kv is None) or ('allreduce' in kv.type):
         update_on_kvstore = False
 
     return (kv, update_on_kvstore)
@@ -125,7 +125,7 @@ def _initialize_kvstore(kvstore, param_arrays, arg_params, param_names, update_o
         kvstore.init(name, arg_params[name])
 
         if update_on_kvstore:
-            if 'horovod' not in kvstore:
+            if 'horovod' not in kvstore.type:
                 kvstore.pull(name, param_on_devs, priority=-idx)
             else:
                 kvstore.broadcast(name, param_on_devs, 0, priority=-idx)
@@ -170,7 +170,7 @@ def _update_params(param_arrays, grad_arrays, updater, num_device,
         if grad_list[0] is None:
             continue
         index = i
-        if 'horovod' not in kvstore:
+        if 'horovod' not in kvstore.type:
             name = param_names[index]
             # push gradient, priority is negative index
             kvstore.push(name, grad_list, priority=-index)

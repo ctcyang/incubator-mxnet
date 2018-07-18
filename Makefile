@@ -378,8 +378,8 @@ CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 
 ifeq ($(USE_HOROVOD),1)
-	OBJ += $(addprefix $(HOROVOD_PATH)/build/common/, common.o mpi_message.o operations.o timeline.o)
-	OBJ += $(addprefix $(HOROVOD_PATH)/build/mxnet/, adapter.o cuda_util.o handle_manager.o mpi_ops.o ready_event.o tensor_util.o)
+	HVDOBJ = $(addprefix $(HOROVOD_PATH)/build/common/, common.o mpi_message.o operations.o timeline.o)
+	HVDOBJ += $(addprefix $(HOROVOD_PATH)/build/mxnet/, adapter.o cuda_util.o handle_manager.o mpi_ops.o ready_event.o tensor_util.o)
 endif
 
 # extra operators
@@ -490,12 +490,10 @@ build/plugin/%.o: plugin/%.cc
 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -Isrc/operator -c $< -o $@
 
 $(HOROVOD_PATH)/build/common/%.o: $(HOROVOD_PATH)/horovod/common/%.cc
-	echo "compiling common folder"
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
 
 $(HOROVOD_PATH)/build/mxnet/%.o: $(HOROVOD_PATH)/horovod/mxnet/%.cc
-	echo "compiling mxnet folder"
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
 
