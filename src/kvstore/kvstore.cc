@@ -52,6 +52,17 @@ KVStore* KVStore::Create(const char *type_name) {
     use_device_comm = true;
   }
 
+  if (has("horovod")) {
+#ifndef MXNET_USE_HOROVOD
+    LOG(FATAL) << "compile with USE_HOROVOD=1 to use " << tname;
+    return nullptr;
+#else
+    kv = new kvstore::KVStoreHorovod(use_device_comm);
+    kv->type_ = tname;
+    return kv;
+#endif
+  }
+
   if (has("dist")) {
 #if MXNET_USE_DIST_KVSTORE
     kv = new kvstore::KVStoreDist(use_device_comm);

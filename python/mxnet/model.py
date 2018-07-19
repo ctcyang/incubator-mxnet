@@ -123,12 +123,11 @@ def _initialize_kvstore(kvstore, param_arrays, arg_params, param_names, update_o
     for idx, param_on_devs in enumerate(param_arrays):
         name = param_names[idx]
         kvstore.init(name, arg_params[name])
+        if 'horovod' in kvstore.type:
+            kvstore.broadcast(name, param_on_devs, 0, priority=-idx)
 
         if update_on_kvstore:
-            if 'horovod' not in kvstore.type:
-                kvstore.pull(name, param_on_devs, priority=-idx)
-            else:
-                kvstore.broadcast(name, param_on_devs, 0, priority=-idx)
+            kvstore.pull(name, param_on_devs, priority=-idx)
 
 def _update_params_on_kvstore_nccl(param_arrays, grad_arrays, kvstore, param_names):
     """Perform update of param_arrays from grad_arrays on NCCL kvstore."""
@@ -170,15 +169,16 @@ def _update_params(param_arrays, grad_arrays, updater, num_device,
         if grad_list[0] is None:
             continue
         index = i
-        if 'horovod' not in kvstore.type:
+        if kvstore:
             name = param_names[index]
-            # push gradient, priority is negative index
-            kvstore.push(name, grad_list, priority=-index)
-            # pull back the sum gradients, to the same locations.
-            kvstore.pull(name, grad_list, priority=-index)
-        elif num_device is 1:
-            # use horovod to sum gradients
-            kvstore.pushpull(name, grad_list, grad_list, priority=-index)
+            if 'horovod' not in kvstore.type:
+                # push gradient, priority is negative index
+                kvstore.push(name, grad_list, priority=-index)
+                # pull back the sum gradients, to the same locations.
+                kvstore.pull(name, grad_list, priority=-index)
+            else:
+                # use horovod to sum gradients
+                kvstore.pushpull(name, grad_list, grad_list, priority=-index)
         for k, p in enumerate(zip(arg_list, grad_list)):
             # faked an index here, to make optimizer create diff
             # state for the same index but on diff devs, TODO(mli)
