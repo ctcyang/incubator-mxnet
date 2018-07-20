@@ -76,8 +76,8 @@ def error(gpu_res, cpu_res):
 def run(network, optimizer, gpus, kv_store, image_shape, disp_batches,
         num_batches, test_results, gc_type, **kwargs):
     # create kvstore and optimizer
-    devs = [mx.gpu(int(i)) for i in gpus.split(',')]
     kv = mx.kv.create(kv_store)
+    devs = [mx.gpu(int(i)) for i in gpus.split(',')]
     if gc_type != 'none':
         kv.set_gradient_compression({'type': gc_type})
     if optimizer is None or optimizer == 'None':

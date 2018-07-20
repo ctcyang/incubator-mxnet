@@ -143,7 +143,7 @@ class KVStoreHorovod : public KVStoreLocal {
   // synchronization is taken care of in Horovod and it has no suitable API
   /*void Barrier() override {
     int ret = MXBarrier();
-    if (ret != 0) {
+    if (ret == -1) {
       LOG(FATAL) << "MXBarrier is not successful. ret: " << ret;
     }
   }*/
@@ -151,7 +151,7 @@ class KVStoreHorovod : public KVStoreLocal {
   int get_rank() const override {
     int ret;
     ret = horovod_rank();
-    if (ret != 0) {
+    if (ret == -1) {
       LOG(FATAL) << "horovod_rank is not successful. ret: " << ret;
     }
     return ret;
@@ -160,7 +160,7 @@ class KVStoreHorovod : public KVStoreLocal {
   int get_local_rank() const override {
     int ret;
     ret = horovod_local_rank();
-    if (ret != 0) {
+    if (ret == -1) {
       LOG(FATAL) << "horovod_local_rank is not successful. ret: " << ret;
     }
     return ret;
@@ -169,7 +169,7 @@ class KVStoreHorovod : public KVStoreLocal {
   int get_group_size() const override {
     int ret;
     ret = horovod_size();
-    if (ret != 0) {
+    if (ret == -1) {
       LOG(FATAL) << "horovod_size is not successful. ret: " << ret;
     }
     return ret;
@@ -178,7 +178,7 @@ class KVStoreHorovod : public KVStoreLocal {
   int get_local_size() const override {
     int ret;
     ret = horovod_local_size();
-    if (ret != 0) {
+    if (ret == -1) {
       LOG(FATAL) << "horovod_local_size is not successful. ret: " << ret;
     }
     return ret;
@@ -190,6 +190,7 @@ class KVStoreHorovod : public KVStoreLocal {
     CheckUnique(keys);
     for (size_t i = 0; i < keys.size(); ++i) {
       comm_->Init(keys[i], values[i].storage_type(), values[i].shape(), values[i].dtype());
+      //LOG(WARNING) << keys[i] << " " << values[i].dtype();
     }
   }
 
@@ -212,10 +213,28 @@ class KVStoreHorovod : public KVStoreLocal {
       char* name_from_key = new char[kIntLength];
       std::strcpy(name_from_key, std::to_string(key).c_str());
       int rank = get_rank();
-      int ret = horovod_mxnet_allreduce_async(&grouped_invals[i][rank], grouped_outvals[i][rank], false, name_from_key);
-      if (ret != 0) {
+      int local_size = get_local_size();
+      LOG(WARNING) << name_from_key << " Rank: " << rank << ", Local size: " << local_size << " " << grouped_invals[i][0].dtype() << " " << grouped_outvals[i][0]->dtype() << " " << grouped_invals[i][0].shape().Size() << " " << grouped_outvals[i][0]->shape().Size();
+      
+      NDArray& input = grouped_invals[i][0];
+      NDArray& output = *grouped_outvals[i][0];
+      //LOG(WARNING) << "PushPull Input on GPU:  " << (input.ctx().dev_mask() == gpu::kDevMask) << " on " << (input.ctx().real_dev_id());
+      //LOG(WARNING) << "PushPull Output on GPU: " << (output.ctx().dev_mask() == gpu::kDevMask) << " on " << (output.ctx().real_dev_id());
+      auto allreduce_async_fn = [input, output, name_from_key](RunContext rctx, Engine::CallbackOnComplete cb) mutable {
+        horovod_mxnet_allreduce_async(&input, &output, false, name_from_key);
+      };
+      Engine::Get()->PushAsync(
+        allreduce_async_fn,
+        input.ctx(),
+        {input.var()},
+        {output.var()},
+        FnProperty::kNormal,
+        priority,
+        "KVStoreHorovodAllreduce");
+      /*int ret = horovod_mxnet_allreduce_async(&grouped_invals[i][rank], grouped_outvals[i][rank], false, name_from_key);
+      if (ret == -1) {
         LOG(FATAL) << "horovod_mxnet_allreduce_async is not successful. ret:" << ret;
-      }
+      }*/
     }
   }
 
@@ -232,10 +251,28 @@ class KVStoreHorovod : public KVStoreLocal {
       char* name_from_key = new char[kIntLength];
       std::strcpy(name_from_key, std::to_string(key).c_str());
       int rank = get_rank();
-      int ret = horovod_mxnet_broadcast_async(grouped_vals[i][rank], grouped_vals[i][rank], root_rank, name_from_key);
-      if (ret != 0) {
+      int local_size = get_local_size();
+      LOG(WARNING) << name_from_key << " Rank: " << rank << ", Local size: " << local_size << " " << grouped_vals[i][0]->dtype() << " " << grouped_vals[i][0]->shape().Size();
+
+      NDArray& input  = *grouped_vals[i][0];
+      NDArray& output = *grouped_vals[i][0];
+      //LOG(WARNING) << "Broadcast Input on GPU:  " << (input.ctx().dev_mask() == gpu::kDevMask) << " on " << (input.ctx().real_dev_id());
+      //LOG(WARNING) << "Broadcast Output on GPU: " << (output.ctx().dev_mask() == gpu::kDevMask) << " on " << (output.ctx().real_dev_id());
+      auto broadcast_async_fn = [input, output, root_rank, name_from_key](RunContext rctx, Engine::CallbackOnComplete cb) mutable {
+        horovod_mxnet_broadcast_async(&input, &output, root_rank, name_from_key);
+      };
+      Engine::Get()->PushAsync(
+        broadcast_async_fn,
+        comm_->pinned_ctx(),
+        {},
+        {output.var()},
+        FnProperty::kNormal,
+        priority,
+        "KVStoreHorovodBroadcast");
+      /*int ret = horovod_mxnet_broadcast_async(grouped_vals[i][rank], grouped_vals[i][rank], root_rank, name_from_key);
+      if (ret == -1) {
         LOG(FATAL) << "horovod_mxnet_broadcast_async is not successful. ret:" << ret;
-      }
+      }*/
     }
   }
 
