@@ -358,6 +358,24 @@ ifeq ($(USE_HOROVOD), 1)
 	CFLAGS += -I$(HOROVOD_PATH) -DMXNET_USE_HOROVOD
 	#LIB_DEP += $(HOROVOD_PATH)/lib/libhorovod.a
 
+        ifeq ($(HOROVOD_GPU_ALLREDUCE), MPI)
+                CFLAGS += -D"HOROVOD_GPU_ALLREDUCE=M"
+        else
+                CFLAGS += -D"HOROVOD_GPU_ALLREDUCE=N"
+        endif
+
+        ifeq ($(HOROVOD_GPU_ALLGATHER), MPI)
+                CFLAGS += -DHOROVOD_GPU_ALLGATHER=M
+        else
+                CFLAGS += -DHOROVOD_GPU_ALLGATHER=N
+        endif
+
+        ifeq ($(HOROVOD_GPU_BROADCAST), MPI)
+                CFLAGS += -DHOROVOD_GPU_BROADCAST=M
+        else
+                CFLAGS += -DHOROVOD_GPU_BROADCAST=N
+        endif
+
 	# MPI
 	ifeq ($(USE_MPI_PATH),)
         	USE_MPI_PATH := $(shell ./prepare_mpi.sh $(DEF_MPI_PATH))

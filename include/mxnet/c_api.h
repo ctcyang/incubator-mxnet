@@ -1986,6 +1986,7 @@ MXNET_DLL int MXKVStorePullEx(KVStoreHandle handle,
  * \param in_vals the list of values to be aggregated
  * \param out_vals the list of values to store the result
  * \param priority the priority of the action
+ * \param average a flag to indicate whether or not to divide by number of workers
  * \return 0 when success, -1 when failure happens
  */
 MXNET_DLL int MXKVStorePushPull(KVStoreHandle handle,
@@ -1993,7 +1994,8 @@ MXNET_DLL int MXKVStorePushPull(KVStoreHandle handle,
                                 const int *keys,
                                 NDArrayHandle *in_vals,
                                 NDArrayHandle *out_vals,
-                                int priority);
+                                int priority,
+                                int average);
 
 /*!
  * \brief aggregate and sum up a list of (key, value) pairs from from all nodes, the result is stored
@@ -2005,6 +2007,7 @@ MXNET_DLL int MXKVStorePushPull(KVStoreHandle handle,
  * \param in_vals the list of values to be aggregated
  * \param out_vals the list of values to store the result
  * \param priority the priority of the action
+ * \param average a flag to indicate whether or not to divide by number of workers
  * \return 0 when success, -1 when failure happens
  */
 MXNET_DLL int MXKVStorePushPullEx(KVStoreHandle handle,
@@ -2012,7 +2015,8 @@ MXNET_DLL int MXKVStorePushPullEx(KVStoreHandle handle,
                                   const char **keys,
                                   NDArrayHandle *in_vals,
                                   NDArrayHandle *out_vals,
-                                  int priority);
+                                  int priority,
+                                  int average);
 
 /*!
  * \brief broadcast a list of (key, value) pairs from root_rank to all other nodes. Note:

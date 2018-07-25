@@ -928,7 +928,8 @@ int MXKVStorePushPull(KVStoreHandle handle,
                       const int *keys,
                       NDArrayHandle *in_vals,
                       NDArrayHandle *out_vals,
-                      int priority) {
+                      int priority,
+                      int average) {
   API_BEGIN();
   std::vector<int> v_keys(num);
   std::vector<NDArray> v_invals(num);
@@ -938,7 +939,7 @@ int MXKVStorePushPull(KVStoreHandle handle,
     v_invals[i] = *static_cast<NDArray*>(in_vals[i]);
     v_outvals[i] = static_cast<NDArray*>(out_vals[i]);
   }
-  static_cast<KVStore*>(handle)->PushPull(v_keys, v_invals, v_outvals, priority);
+  static_cast<KVStore*>(handle)->PushPull(v_keys, v_invals, v_outvals, priority, average);
   API_END();
 }
 
@@ -947,7 +948,8 @@ int MXKVStorePushPullEx(KVStoreHandle handle,
                         const char **keys,
                         NDArrayHandle *in_vals,
                         NDArrayHandle *out_vals,
-                        int priority) {
+                        int priority,
+                        int average) {
   API_BEGIN();
   std::vector<std::string> v_keys(num);
   std::vector<NDArray> v_invals(num);
@@ -957,7 +959,7 @@ int MXKVStorePushPullEx(KVStoreHandle handle,
     v_invals[i] = *static_cast<NDArray*>(in_vals[i]);
     v_outvals[i] = static_cast<NDArray*>(out_vals[i]);
   }
-  static_cast<KVStore*>(handle)->PushPull(v_keys, v_invals, v_outvals, priority);
+  static_cast<KVStore*>(handle)->PushPull(v_keys, v_invals, v_outvals, priority, average);
   API_END();
 }
 

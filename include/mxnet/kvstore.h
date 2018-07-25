@@ -193,12 +193,14 @@ class KVStore {
    * \param keys the list of keys
    * \param in_values the list of buffers to be allreduced
    * \param out_values the list of buffers to store the result
+   * \param average a flag whether or not to divide by the number of workers
    * \param priority Priority of the action
    */
   virtual void PushPull(const std::vector<int> &keys,
                         const std::vector<NDArray> &in_values,
                         const std::vector<NDArray*> &out_values,
-                        int priority = 0) {
+                        int priority = 0,
+                        int average = 0) {
       LOG(FATAL) << "The api is not supported in kvstore with type " << type_;
   }
 
@@ -209,12 +211,14 @@ class KVStore {
    * \param keys the list of keys in string format
    * \param in_values the list of buffers to be allreduced
    * \param out_values the list of buffers to store the result
+   * \param average a flag whether or not to divide by the number of workers
    * \param priority Priority of the action
    */
   virtual void PushPull(const std::vector<std::string> &str_keys,
                         const std::vector<NDArray> &in_values,
                         const std::vector<NDArray*> &out_values,
-                        int priority = 0) {
+                        int priority = 0,
+                        int average = 0) {
       LOG(FATAL) << "The api is not supported in kvstore with type " << type_;
   }
 
