@@ -77,7 +77,7 @@ def run(network, optimizer, gpus, kv_store, image_shape, disp_batches,
         num_batches, test_results, gc_type, **kwargs):
     # create kvstore and optimizer
     kv = mx.kv.create(kv_store)
-    devs = [mx.gpu(int(i)) for i in gpus.split(',')]
+    devs = [mx.gpu(kv.local_rank)] if 'horovod' in kv.type else [mx.gpu(int(i)) for i in gpus.split(',')]
     if gc_type != 'none':
         kv.set_gradient_compression({'type': gc_type})
     if optimizer is None or optimizer == 'None':
@@ -119,7 +119,7 @@ def run(network, optimizer, gpus, kv_store, image_shape, disp_batches,
                 kv.pull(i, w, i)
         else:
             for i,g in enumerate(grads):
-                kv.pushpull(i, g, g)
+                kv.pushpull(i, g, g, i)
             for i, pair in enumerate(zip(weights, grads)):
                 arg_list, grad_list = pair
                 for k, p in enumerate(zip(arg_list, grad_list)):

@@ -362,11 +362,11 @@ class KVStore(object):
             if use_str_keys:
                 check_call(_LIB.MXKVStorePushPullEx(
                     self.handle, mx_uint(len(ckeys)), ckeys, cinvals,
-                    coutvals, ctypes.c_int(priority), ctypes.c_bool(average)))
+                    coutvals, ctypes.c_int(priority), ctypes.c_int(average = int(average == 'True'))))
             else:
                 check_call(_LIB.MXKVStorePushPull(
                     self.handle, mx_uint(len(ckeys)), ckeys, cinvals,
-                    coutvals, ctypes.c_int(priority), ctypes.c_bool(average)))
+                    coutvals, ctypes.c_int(priority), ctypes.c_int(average = int(average == 'True'))))
         else:
             raise Exception("This api is not supported for kvstore with type %s. \
                              Please use push and pull instead."%self.type)
