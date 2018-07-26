@@ -351,6 +351,40 @@ ifeq ($(USE_DIST_KVSTORE), 1)
 	LDFLAGS += $(PS_LDFLAGS_A)
 endif
 
+# Horovod
+ifeq ($(USE_HOROVOD), 1)
+        HOROVOD_PATH=$(ROOTDIR)/3rdparty/horovod
+        include $(HOROVOD_PATH)/make/config.mk
+	CFLAGS += -I$(HOROVOD_PATH) -DMXNET_USE_HOROVOD
+	#LIB_DEP += $(HOROVOD_PATH)/lib/libhorovod.a
+
+        ifeq ($(HOROVOD_GPU_ALLREDUCE), MPI)
+                CFLAGS += -D"HOROVOD_GPU_ALLREDUCE=M"
+        else
+                CFLAGS += -D"HOROVOD_GPU_ALLREDUCE=N"
+        endif
+
+        ifeq ($(HOROVOD_GPU_ALLGATHER), MPI)
+                CFLAGS += -DHOROVOD_GPU_ALLGATHER=M
+        else
+                CFLAGS += -DHOROVOD_GPU_ALLGATHER=N
+        endif
+
+        ifeq ($(HOROVOD_GPU_BROADCAST), MPI)
+                CFLAGS += -DHOROVOD_GPU_BROADCAST=M
+        else
+                CFLAGS += -DHOROVOD_GPU_BROADCAST=N
+        endif
+
+	# MPI
+	ifeq ($(USE_MPI_PATH),)
+        	USE_MPI_PATH := $(shell ./prepare_mpi.sh $(DEF_MPI_PATH))
+	endif
+
+	CFLAGS += -I$(USE_MPI_PATH)/include
+	LDFLAGS += -L$(USE_MPI_PATH)/lib -Wl,-rpath=$(USE_MPI_PATH)/lib -lmpi
+endif
+
 .PHONY: clean all extra-packages test lint docs clean_all rcpplint rcppexport roxygen\
 	cython2 cython3 cython cyclean
 
@@ -360,6 +394,11 @@ SRC = $(wildcard src/*/*/*/*.cc src/*/*/*.cc src/*/*.cc src/*.cc)
 OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
+
+ifeq ($(USE_HOROVOD),1)
+	HVDOBJ = $(addprefix $(HOROVOD_PATH)/build/common/, common.o mpi_message.o operations.o timeline.o)
+	HVDOBJ += $(addprefix $(HOROVOD_PATH)/build/mxnet/, adapter.o cuda_util.o handle_manager.o mpi_ops.o ready_event.o tensor_util.o)
+endif
 
 # extra operators
 ifneq ($(EXTRA_OPERATORS),)
@@ -396,10 +435,10 @@ endif
 
 # all dep
 LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
-ALL_DEP = $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
+ALL_DEP = $(HVDOBJ) $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
 ifeq ($(USE_CUDA), 1)
-	CFLAGS += -I$(ROOTDIR)/3rdparty/cub
+	CFLAGS += -I$(ROOTDIR)/3rdparty/cub -DHAVE_CUDA=1
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
 	LDFLAGS += -lcufft
 	ifeq ($(ENABLE_CUDA_RTC), 1)
@@ -416,9 +455,9 @@ ifeq ($(USE_CUDA), 1)
 			LDFLAGS += -L$(USE_NCCL_PATH)/lib
 		endif
 		LDFLAGS += -lnccl
-		CFLAGS += -DMXNET_USE_NCCL=1
+		CFLAGS += -DMXNET_USE_NCCL=1 -DHAVE_NCCL=1
 	else
-		CFLAGS += -DMXNET_USE_NCCL=0
+		CFLAGS += -DMXNET_USE_NCCL=0 -DHAVE_NCCL=0
 	endif
 else
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-cpu
@@ -468,6 +507,14 @@ build/plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -Isrc/operator -c $< -o $@
 
+$(HOROVOD_PATH)/build/common/%.o: $(HOROVOD_PATH)/horovod/common/%.cc
+	@mkdir -p $(@D)
+	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+
+$(HOROVOD_PATH)/build/mxnet/%.o: $(HOROVOD_PATH)/horovod/mxnet/%.cc
+	@mkdir -p $(@D)
+	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+
 # NOTE: to statically link libmxnet.a we need the option
 # --Wl,--whole-archive -lmxnet --Wl,--no-whole-archive
 lib/libmxnet.a: $(ALLX_DEP)
@@ -495,6 +542,11 @@ $(DMLC_CORE)/libdmlc.a: DMLCCORE
 
 DMLCCORE:
 	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a USE_SSE=$(USE_SSE) config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
+
+#$(HOROVOD_PATH)/lib/libhorovod.a: HOROVOD
+
+#HOROVOD:
+#	+ cd $(HOROVOD_PATH); $(MAKE) lib/libhorovod.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
 NNVM_INC = $(wildcard $(NNVM_PATH)/include/*/*.h)
 NNVM_SRC = $(wildcard $(NNVM_PATH)/src/*/*/*.cc $(NNVM_PATH)/src/*/*.cc $(NNVM_PATH)/src/*.cc)
@@ -649,6 +701,7 @@ clean: cyclean $(EXTRA_PACKAGES_CLEAN)
 	cd $(PS_PATH); $(MAKE) clean; cd -
 	cd $(NNVM_PATH); $(MAKE) clean; cd -
 	cd $(AMALGAMATION_PATH); $(MAKE) clean; cd -
+	cd $(HOROVOD_PATH); $(MAKE) clean; cd -
 	$(RM) -r  $(patsubst %, %/*.d, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.d, $(EXTRA_OPERATORS))
 	$(RM) -r  $(patsubst %, %/*.o, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.o, $(EXTRA_OPERATORS))
 else
@@ -659,6 +712,7 @@ clean: mkldnn_clean cyclean testclean $(EXTRA_PACKAGES_CLEAN)
 	cd $(PS_PATH); $(MAKE) clean; cd -
 	cd $(NNVM_PATH); $(MAKE) clean; cd -
 	cd $(AMALGAMATION_PATH); $(MAKE) clean; cd -
+	cd $(HOROVOD_PATH); $(MAKE) clean; cd -
 endif
 
 clean_all: clean

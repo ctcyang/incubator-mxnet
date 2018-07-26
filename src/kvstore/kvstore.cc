@@ -34,6 +34,9 @@ std::atomic<int> mxnet::kvstore::KVStoreDist::customer_id_{0};
 #if MXNET_USE_NCCL
 #include "./kvstore_nccl.h"
 #endif  // MXNET_USE_NCCL
+#if MXNET_USE_HOROVOD
+#include "./kvstore_horovod.h"
+#endif  // MXNET_USE_HOROVOD
 
 namespace mxnet {
 
@@ -47,6 +50,17 @@ KVStore* KVStore::Create(const char *type_name) {
   };
   if (has("device")) {
     use_device_comm = true;
+  }
+
+  if (has("horovod")) {
+#ifndef MXNET_USE_HOROVOD
+    LOG(FATAL) << "compile with USE_HOROVOD=1 to use " << tname;
+    return nullptr;
+#else
+    kv = new kvstore::KVStoreHorovod(use_device_comm);
+    kv->type_ = tname;
+    return kv;
+#endif
   }
 
   if (has("dist")) {

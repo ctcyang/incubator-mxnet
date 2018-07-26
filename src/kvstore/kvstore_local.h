@@ -160,6 +160,7 @@ class KVStoreLocal : public KVStore {
       CHECK(local_.find(keys[i]) == local_.end())
           << "duplicate init of key " << keys[i];
       local_[keys[i]] = values[i].Copy(pinned_ctx_);
+      LOG(WARNING) << keys[i] << " " << values[i].dtype();
       comm_->Init(keys[i], values[i].storage_type(), values[i].shape(), values[i].dtype());
     }
     comm_->SetGradientCompression(gradient_compression_);
@@ -420,6 +421,16 @@ class KVStoreLocal : public KVStore {
       is_gpu ? FnProperty::kGPUPrioritized : FnProperty::kCPUPrioritized,
       priority, "KVStoreUnique");
     return out;
+  }
+
+  /**
+   * \brief check if the keys are all unique
+   */
+  void CheckUnique(const std::vector<int>& keys) {
+    auto keys_copy = keys;
+    auto last = std::unique(keys_copy.begin(), keys_copy.end());
+    CHECK_EQ(static_cast<size_t>(std::distance(keys_copy.begin(), last)),
+             static_cast<size_t>(keys.size()));
   }
 
   /// reducer and broadcaster
