@@ -115,8 +115,8 @@ class KVStoreHorovod : public KVStoreLocal {
   void PushPull(const std::vector<std::string> &str_keys,
                 const std::vector<NDArray> &in_values,
                 const std::vector<NDArray*> &out_values,
-                int average,
-                int priority) override {
+                int priority,
+                int average) override {
     SetKeyType(kStringKey);
     std::vector<int> keys(str_keys.size());
     LookupKeys(str_keys, &keys);
