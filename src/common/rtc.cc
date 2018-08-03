@@ -81,7 +81,7 @@ CUfunction CudaModule::Chunk::GetFunction(
   if (iter != mod_.end()) {
     module = iter->second;
   } else {
-    CUDA_CALL(cudaSetDevice(ctx.dev_id));
+    mxnet::common::cuda::SetDevice set_device(ctx.dev_id);
     CUDA_DRIVER_CALL(cuModuleLoadDataEx(&module, ptx_, 0, 0, 0));
     mod_[ctx.dev_id] = module;
   }
