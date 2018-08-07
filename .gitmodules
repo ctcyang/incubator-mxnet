@@ -29,4 +29,4 @@
 [submodule "3rdparty/horovod"]
 	path = 3rdparty/horovod
 	url = https://github.com/ctcyang/horovod.git
-        branch = mxnet
+        branch = mxnet_fp16_divide_before_sum
