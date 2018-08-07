@@ -28,6 +28,7 @@
 #include "./engine_impl.h"
 #include "../profiler/profiler.h"
 #include "./openmp.h"
+#include "../common/cuda_utils.h"
 
 namespace mxnet {
 namespace engine {

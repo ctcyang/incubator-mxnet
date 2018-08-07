@@ -356,24 +356,24 @@ ifeq ($(USE_HOROVOD), 1)
         HOROVOD_PATH=$(ROOTDIR)/3rdparty/horovod
         include $(HOROVOD_PATH)/make/config.mk
 	CFLAGS += -I$(HOROVOD_PATH) -DMXNET_USE_HOROVOD
-	#LIB_DEP += $(HOROVOD_PATH)/lib/libhorovod.a
 
+        # Note: single quotation mark must be escaped or it gets eaten
         ifeq ($(HOROVOD_GPU_ALLREDUCE), MPI)
-                CFLAGS += -D"HOROVOD_GPU_ALLREDUCE=M"
+                CFLAGS += -DHOROVOD_GPU_ALLREDUCE=\'M\'
         else
-                CFLAGS += -D"HOROVOD_GPU_ALLREDUCE=N"
+                CFLAGS += -DHOROVOD_GPU_ALLREDUCE=\'N\'
         endif
 
         ifeq ($(HOROVOD_GPU_ALLGATHER), MPI)
-                CFLAGS += -DHOROVOD_GPU_ALLGATHER=M
+                CFLAGS += -DHOROVOD_GPU_ALLGATHER=\'M\'
         else
-                CFLAGS += -DHOROVOD_GPU_ALLGATHER=N
+                CFLAGS += -DHOROVOD_GPU_ALLGATHER=\'N\'
         endif
 
         ifeq ($(HOROVOD_GPU_BROADCAST), MPI)
-                CFLAGS += -DHOROVOD_GPU_BROADCAST=M
+                CFLAGS += -DHOROVOD_GPU_BROADCAST=\'M\'
         else
-                CFLAGS += -DHOROVOD_GPU_BROADCAST=N
+                CFLAGS += -DHOROVOD_GPU_BROADCAST=\'N\'
         endif
 
 	# MPI

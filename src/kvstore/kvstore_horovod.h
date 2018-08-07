@@ -214,8 +214,6 @@ class KVStoreHorovod : public KVStoreLocal {
       int key = uniq_keys[i];
       char* name_from_key = new char[kIntLength];
       snprintf(name_from_key, kIntLength-1, "%s", std::to_string(key).c_str());
-      int rank = get_rank();
-      int local_size = get_local_size();
 
       NDArray& input = grouped_invals[i][0];
       NDArray& output = *grouped_outvals[i][0];
@@ -257,8 +255,6 @@ class KVStoreHorovod : public KVStoreLocal {
       int key = uniq_keys[i];
       char* name_from_key = new char[kIntLength];
       snprintf(name_from_key, kIntLength-1, "%s", std::to_string(key).c_str());
-      int rank = get_rank();
-      int local_size = get_local_size();
 
       NDArray& input  = *grouped_vals[i][0];
       NDArray& output = *grouped_vals[i][0];
