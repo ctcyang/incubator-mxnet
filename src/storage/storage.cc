@@ -52,8 +52,11 @@ class StorageImpl : public Storage {
     switch (ctx.dev_type) {
       case Context::kCPU:
       case Context::kCPUPinned:
-        CUDA_CALL(cudaSetDevice(ctx.real_dev_id()));
-          //LOG(WARNING) << "kCPUPinned ActivateDevice: " << ctx.real_dev_id();
+#if MXNET_USE_CUDA
+        if (num_gpu_device > 0) {
+          CUDA_CALL(cudaSetDevice(ctx.real_dev_id()));
+        }
+#endif
         break;
       case Context::kCPUShared: {
 #if defined(ANDROID) || defined(__ANDROID__)
@@ -65,7 +68,6 @@ class StorageImpl : public Storage {
 #if MXNET_USE_CUDA
           if (num_gpu_device > 0) {
             CUDA_CALL(cudaSetDevice(ctx.real_dev_id()));
-            //LOG(WARNING) << "kGPU ActivateDevice: " << ctx.real_dev_id();
           }
 #endif  // MXNET_USE_CUDA
           break;
@@ -86,7 +88,6 @@ int StorageImpl::num_gpu_device = 0;
 void StorageImpl::Alloc(Storage::Handle* handle) {
   // space already recycled, ignore request
   auto&& device = storage_managers_.at(handle->ctx.dev_type);
-  //LOG(WARNING) << "Enter Alloc: " << handle->ctx.real_dev_id();
   std::shared_ptr<storage::StorageManager> manager = device.Get(
       handle->ctx.real_dev_id(), [handle]() {
         storage::StorageManager *ptr = nullptr;
@@ -104,7 +105,6 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
           case Context::kCPUPinned: {
 #if MXNET_USE_CUDA
             num_gpu_device = 0;
-            //LOG(WARNING) << "kCPUPinned Alloc: " << handle->ctx.real_dev_id();
             cudaError_t e = cudaGetDeviceCount(&num_gpu_device);
             if (e != cudaSuccess) {
               num_gpu_device = 0;
@@ -149,16 +149,12 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
       });
 
   // Will restore gpu device to before ActivateDevice
-  int dev_id;
-  CUDA_CALL(cudaGetDevice(&dev_id));
-  //LOG(WARNING) << "Old device: " << dev_id;
-  //{
-    //mxnet::common::cuda::SetDevice set_device();
-    this->ActivateDevice(handle->ctx);
-    manager->Alloc(handle);
-    profiler_.OnAlloc(*handle);
-  //}
-  CUDA_CALL(cudaSetDevice(dev_id));
+#if MXNET_USE_CUDA
+  mxnet::common::cuda::SetDevice set_device;
+#endif
+  this->ActivateDevice(handle->ctx);
+  manager->Alloc(handle);
+  profiler_.OnAlloc(*handle);
 }
 
 void StorageImpl::Free(Storage::Handle handle) {
@@ -170,16 +166,12 @@ void StorageImpl::Free(Storage::Handle handle) {
         return nullptr;
       });
   // Will restore gpu device to before ActivateDevice
-  int dev_id;
-  CUDA_CALL(cudaGetDevice(&dev_id));
-  //LOG(WARNING) << "Old device: " << dev_id;
-  //{
-    //mxnet::common::cuda::SetDevice set_device();
-    this->ActivateDevice(ctx);
-    manager->Free(handle);
-    profiler_.OnFree(handle);
-  //}
-  CUDA_CALL(cudaSetDevice(dev_id));
+#if MXNET_USE_CUDA
+  mxnet::common::cuda::SetDevice set_device;
+#endif
+  this->ActivateDevice(ctx);
+  manager->Free(handle);
+  profiler_.OnFree(handle);
 }
 
 void StorageImpl::DirectFree(Storage::Handle handle) {
@@ -191,16 +183,12 @@ void StorageImpl::DirectFree(Storage::Handle handle) {
         return nullptr;
       });
   // Will restore gpu device to before ActivateDevice
-  int dev_id;
-  CUDA_CALL(cudaGetDevice(&dev_id));
-  //LOG(WARNING) << "Old device: " << dev_id;
-  //{
-    //mxnet::common::cuda::SetDevice set_device();
-    this->ActivateDevice(ctx);
-    manager->DirectFree(handle);
-    profiler_.OnFree(handle);
-  //}
-  CUDA_CALL(cudaSetDevice(dev_id));
+#if MXNET_USE_CUDA
+  mxnet::common::cuda::SetDevice set_device;
+#endif
+  this->ActivateDevice(ctx);
+  manager->DirectFree(handle);
+  profiler_.OnFree(handle);
 }
 
 void StorageImpl::SharedIncrementRefCount(Storage::Handle handle) {

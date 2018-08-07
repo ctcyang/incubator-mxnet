@@ -66,7 +66,7 @@ RunContext StreamManager<kNumGpus, kStreams>::GetRunContext(
     Context const& ctx) {
   RunContext ret;
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device();
+  mxnet::common::cuda::SetDevice set_device;
 #endif
   switch (ctx.dev_mask()) {
     case cpu::kDevMask:
@@ -105,7 +105,7 @@ RunContext StreamManager<kNumGpus, kStreams>::GetIORunContext(
     Context const& ctx) {
   RunContext ret;
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device();
+  mxnet::common::cuda::SetDevice set_device;
 #endif
   switch (ctx.dev_mask()) {
     case cpu::kDevMask:

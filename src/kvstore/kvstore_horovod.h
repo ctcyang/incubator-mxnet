@@ -192,7 +192,6 @@ class KVStoreHorovod : public KVStoreLocal {
     CheckUnique(keys);
     for (size_t i = 0; i < keys.size(); ++i) {
       comm_->Init(keys[i], values[i].storage_type(), values[i].shape(), values[i].dtype());
-      //LOG(WARNING) << keys[i] << " " << values[i].dtype();
     }
   }
 
@@ -210,20 +209,18 @@ class KVStoreHorovod : public KVStoreLocal {
     uniq_keys.clear();
     GroupKVPairsPull(keys, out_values, &uniq_keys, &grouped_outvals, true);
 
+    // reduce over devices
     for (size_t i = 0; i < uniq_keys.size(); ++i) {
-      // reduce over devices
       int key = uniq_keys[i];
       char* name_from_key = new char[kIntLength];
-      std::strcpy(name_from_key, std::to_string(key).c_str());
+      snprintf(name_from_key, kIntLength-1, "%s", std::to_string(key).c_str());
       int rank = get_rank();
       int local_size = get_local_size();
-      //LOG(WARNING) << name_from_key << " Rank: " << rank << ", Local size: " << local_size << " " << grouped_invals[i][0].dtype() << " " << grouped_outvals[i][0]->dtype() << " " << grouped_invals[i][0].shape().Size() << " " << grouped_outvals[i][0]->shape().Size();
-      
+
       NDArray& input = grouped_invals[i][0];
       NDArray& output = *grouped_outvals[i][0];
-      //LOG(WARNING) << "PushPull Input on GPU:  " << (input.ctx().dev_mask() == gpu::kDevMask) << " on " << (input.ctx().real_dev_id());
-      //LOG(WARNING) << "PushPull Output on GPU: " << (output.ctx().dev_mask() == gpu::kDevMask) << " on " << (output.ctx().real_dev_id());
-      auto allreduce_async_fn = [input, output, name_from_key, average](RunContext rctx, Engine::CallbackOnComplete cb) mutable {
+      auto allreduce_async_fn = [input, output, name_from_key, average](
+          RunContext rctx, Engine::CallbackOnComplete cb) mutable {
         horovod_mxnet_allreduce_async(&input, &output, average, name_from_key, cb);
       };
       if (input.var() != output.var()) {
@@ -245,10 +242,6 @@ class KVStoreHorovod : public KVStoreLocal {
         priority,
         "KVStoreHorovodAllreduce");
       }
-      /*int ret = horovod_mxnet_allreduce_async(&grouped_invals[i][rank], grouped_outvals[i][rank], false, name_from_key);
-      if (ret == -1) {
-        LOG(FATAL) << "horovod_mxnet_allreduce_async is not successful. ret:" << ret;
-      }*/
     }
   }
 
@@ -263,16 +256,14 @@ class KVStoreHorovod : public KVStoreLocal {
     for (size_t i = 0; i < uniq_keys.size(); ++i) {
       int key = uniq_keys[i];
       char* name_from_key = new char[kIntLength];
-      std::strcpy(name_from_key, std::to_string(key).c_str());
+      snprintf(name_from_key, kIntLength-1, "%s", std::to_string(key).c_str());
       int rank = get_rank();
       int local_size = get_local_size();
-      //LOG(WARNING) << name_from_key << " Rank: " << rank << ", Local size: " << local_size << " " << grouped_vals[i][0]->dtype() << " " << grouped_vals[i][0]->shape().Size();
 
       NDArray& input  = *grouped_vals[i][0];
       NDArray& output = *grouped_vals[i][0];
-      //LOG(WARNING) << "Broadcast Input on GPU:  " << (input.ctx().dev_mask() == gpu::kDevMask) << " on " << (input.ctx().real_dev_id());
-      //LOG(WARNING) << "Broadcast Output on GPU: " << (output.ctx().dev_mask() == gpu::kDevMask) << " on " << (output.ctx().real_dev_id());
-      auto broadcast_async_fn = [input, output, root_rank, name_from_key](RunContext rctx, Engine::CallbackOnComplete cb) mutable {
+      auto broadcast_async_fn = [input, output, root_rank, name_from_key](
+          RunContext rctx, Engine::CallbackOnComplete cb) mutable {
         horovod_mxnet_broadcast_async(&input, &output, root_rank, name_from_key, cb);
       };
       Engine::Get()->PushAsync(
@@ -283,10 +274,6 @@ class KVStoreHorovod : public KVStoreLocal {
         FnProperty::kNormal,
         priority,
         "KVStoreHorovodBroadcast");
-      /*int ret = horovod_mxnet_broadcast_async(grouped_vals[i][rank], grouped_vals[i][rank], root_rank, name_from_key);
-      if (ret == -1) {
-        LOG(FATAL) << "horovod_mxnet_broadcast_async is not successful. ret:" << ret;
-      }*/
     }
   }
 

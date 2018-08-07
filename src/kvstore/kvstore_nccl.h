@@ -428,7 +428,7 @@ class KVStoreNCCL : public KVStoreLocal {
         mutate_vars.push_back(ptr(dst[i])->var());
     }
     Engine::Get()->PushSync([this](RunContext rctx) {
-        mxnet::common::cuda::SetDevice set_device();
+        mxnet::common::cuda::SetDevice set_device;
         for (auto cur : nccl_data_) {
           CUDA_CALL(cudaSetDevice(cur.second.dev_id));
           CUDA_CALL(cudaStreamSynchronize(cur.second.stream));
@@ -480,7 +480,7 @@ class KVStoreNCCL : public KVStoreLocal {
     std::lock_guard<std::mutex> l(Storage::Get()->GetMutex(Context::kGPU));
     std::vector<ncclComm_t> comms(devs.size());
     ncclCommInitAll(&(comms[0]), devs.size(), &(device_ids_[0]));
-    mxnet::common::cuda::SetDevice set_device();
+    mxnet::common::cuda::SetDevice set_device;
     for (size_t i = 0; i < devs.size(); ++i) {
       NCCLEntry e;
       e.dev_id = device_ids_[i];

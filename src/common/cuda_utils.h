@@ -289,17 +289,15 @@ class SetDevice {
   SetDevice() {
 #if MXNET_USE_CUDA
     CUDA_CALL(cudaGetDevice(&restore_device_));
-    LOG(WARNING) << "Old device: " << restore_device_;
 #else
     LOG(FATAL) << MXNET_GPU_NOT_ENABLED_ERROR;
 #endif
   }
 
   /*! \brief standard constuctor is cudaSetDevice + restore previous device */
-  SetDevice(int device) {
+  explicit SetDevice(int device) {
 #if MXNET_USE_CUDA
     CUDA_CALL(cudaGetDevice(&restore_device_));
-    LOG(WARNING) << "Old device: " << restore_device_;
     CUDA_CALL(cudaSetDevice(device));
 #else
     LOG(FATAL) << MXNET_GPU_NOT_ENABLED_ERROR;
