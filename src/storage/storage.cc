@@ -152,7 +152,6 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
   // Will restore gpu device to before ActivateDevice
   if (handle->ctx.dev_type == Context::kCPUPinned || 
       handle->ctx.dev_type == Context::kGPU) {
-    LOG(WARNING) << "Allocating on GPU: ";
 #if MXNET_USE_CUDA
     mxnet::common::cuda::SetDevice set_device;
 #endif
@@ -160,7 +159,6 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
     manager->Alloc(handle);
     profiler_.OnAlloc(*handle);
   } else {
-    LOG(WARNING) << "Allocating on CPU";
     this->ActivateDevice(handle->ctx);
     manager->Alloc(handle);
     profiler_.OnAlloc(*handle);
