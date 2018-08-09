@@ -150,11 +150,18 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
 
   // Will restore gpu device to before ActivateDevice
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device;
-#endif
+  if (handle->ctx.dev_type == Context::kCPUPinned || 
+      handle->ctx.dev_type == Context::kCPUPinned) {
+    mxnet::common::cuda::SetDevice set_device;
+    this->ActivateDevice(handle->ctx);
+    manager->Alloc(handle);
+    profiler_.OnAlloc(*handle);
+  }
+#else
   this->ActivateDevice(handle->ctx);
   manager->Alloc(handle);
   profiler_.OnAlloc(*handle);
+#endif
 }
 
 void StorageImpl::Free(Storage::Handle handle) {
@@ -167,11 +174,17 @@ void StorageImpl::Free(Storage::Handle handle) {
       });
   // Will restore gpu device to before ActivateDevice
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device;
-#endif
+  if (ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kCPUPinned) {
+    mxnet::common::cuda::SetDevice set_device;
+    this->ActivateDevice(ctx);
+    manager->Free(handle);
+    profiler_.OnFree(handle);
+  }
+#else
   this->ActivateDevice(ctx);
   manager->Free(handle);
   profiler_.OnFree(handle);
+#endif
 }
 
 void StorageImpl::DirectFree(Storage::Handle handle) {
@@ -184,11 +197,17 @@ void StorageImpl::DirectFree(Storage::Handle handle) {
       });
   // Will restore gpu device to before ActivateDevice
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device;
-#endif
+  if (ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kCPUPinned) {
+    mxnet::common::cuda::SetDevice set_device;
+    this->ActivateDevice(ctx);
+    manager->DirectFree(handle);
+    profiler_.OnFree(handle);
+  }
+#else
   this->ActivateDevice(ctx);
   manager->DirectFree(handle);
   profiler_.OnFree(handle);
+#endif
 }
 
 void StorageImpl::SharedIncrementRefCount(Storage::Handle handle) {
