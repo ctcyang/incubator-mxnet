@@ -29,6 +29,7 @@
 #include "./pinned_memory_storage.h"
 #include "../common/lazy_alloc_array.h"
 #include "../profiler/storage_profiler.h"
+#include "ps/ps.h"
 
 namespace mxnet {
 
@@ -149,19 +150,21 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
       });
 
   // Will restore gpu device to before ActivateDevice
-#if MXNET_USE_CUDA
   if (handle->ctx.dev_type == Context::kCPUPinned || 
-      handle->ctx.dev_type == Context::kCPUPinned) {
+      handle->ctx.dev_type == Context::kGPU) {
+    LOG(WARNING) << "Allocating on GPU: ";
+#if MXNET_USE_CUDA
     mxnet::common::cuda::SetDevice set_device;
+#endif
+    this->ActivateDevice(handle->ctx);
+    manager->Alloc(handle);
+    profiler_.OnAlloc(*handle);
+  } else {
+    LOG(WARNING) << "Allocating on CPU";
     this->ActivateDevice(handle->ctx);
     manager->Alloc(handle);
     profiler_.OnAlloc(*handle);
   }
-#else
-  this->ActivateDevice(handle->ctx);
-  manager->Alloc(handle);
-  profiler_.OnAlloc(*handle);
-#endif
 }
 
 void StorageImpl::Free(Storage::Handle handle) {
@@ -173,18 +176,18 @@ void StorageImpl::Free(Storage::Handle handle) {
         return nullptr;
       });
   // Will restore gpu device to before ActivateDevice
+  if (ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kGPU) {
 #if MXNET_USE_CUDA
-  if (ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kCPUPinned) {
     mxnet::common::cuda::SetDevice set_device;
+#endif
+    this->ActivateDevice(ctx);
+    manager->Free(handle);
+    profiler_.OnFree(handle);
+  } else {
     this->ActivateDevice(ctx);
     manager->Free(handle);
     profiler_.OnFree(handle);
   }
-#else
-  this->ActivateDevice(ctx);
-  manager->Free(handle);
-  profiler_.OnFree(handle);
-#endif
 }
 
 void StorageImpl::DirectFree(Storage::Handle handle) {
@@ -196,18 +199,18 @@ void StorageImpl::DirectFree(Storage::Handle handle) {
         return nullptr;
       });
   // Will restore gpu device to before ActivateDevice
+  if (ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kGPU) {
 #if MXNET_USE_CUDA
-  if (ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kCPUPinned) {
     mxnet::common::cuda::SetDevice set_device;
+#endif
+    this->ActivateDevice(ctx);
+    manager->DirectFree(handle);
+    profiler_.OnFree(handle);
+  } else {
     this->ActivateDevice(ctx);
     manager->DirectFree(handle);
     profiler_.OnFree(handle);
   }
-#else
-  this->ActivateDevice(ctx);
-  manager->DirectFree(handle);
-  profiler_.OnFree(handle);
-#endif
 }
 
 void StorageImpl::SharedIncrementRefCount(Storage::Handle handle) {
