@@ -44,6 +44,7 @@ namespace mxnet {
 namespace kvstore {
 
 static bool kLogTree = dmlc::GetEnv("MXNET_KVSTORE_LOGTREE", false);
+static bool kDirected = dmlc::GetEnv("MXNET_KVSTORE_DIRECTED", false);
 
 template <typename T>
 inline void PrintVector(const std::string& str, const std::vector<T>& vec) {
@@ -721,7 +722,8 @@ inline T ComputeTreeWeight(const std::vector<T>& W, const std::vector<int>& resu
           weight -= 100;
         }
         links_used.insert(from*num_elements+dest);
-        links_used.insert(dest*num_elements+from);
+        if (!kDirected)
+          links_used.insert(dest*num_elements+from);
       }
 
       nodes_used[from] = true;
@@ -1075,11 +1077,12 @@ inline void ComputeTrees(const std::vector<T>& W,
   std::vector<int> adj(W.size(), 0);
   for (int row = 0; row < num_elements; ++row) {
     for (unsigned col = 1; col < (*topo)[0].size(); col += 2) {
-      int from = std::min((*topo)[row][col], (*topo)[row][col+1]);
-      int dest = std::max((*topo)[row][col], (*topo)[row][col+1]);
+      int from = (*topo)[row][col+1];
+      int dest = (*topo)[row][col];
       if (from != dest) {
         adj[from*num_elements+dest] += 1;
-        adj[dest*num_elements+from] += 1;
+        if (!kDirected)
+          adj[dest*num_elements+from] += 1;
       }
     }
   }
