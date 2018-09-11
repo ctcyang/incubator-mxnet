@@ -94,24 +94,28 @@ class CommDeviceTree : public CommDevice {
     const NDArrayStorageType stype = random_buf.merged[0].storage_type();
 
     if (stype == kDefaultStorage) {
+      for (unsigned root = 0; root < devs_.size(); ++root) {
+        std::vector<size_t>& topology = topology_[root];
+
+        // Copy everything into buf.merged for each gpu
+        for (size_t i = 0; i < src[root].size(); ++i) {
+          int start = scan_[root][depth_];
+          int end = scan_[root][depth_+1];
+
+          for (int j = start; j < end; ++j) {
+            int topo_id = topology[j];
+            TreeBufferEntry& buf = tree_merge_buf_[topo_id][key];
+
+            if (devs_[topo_id] == src[root][i].ctx()) {
+              CopyFromTo(src[root][i], &(buf.merged[root]), priority);
+            }
+          }
+        }
+      }
+
       for (int level = depth_; level > 0; --level) {
         for (unsigned root = 0; root < devs_.size(); ++root) {
           std::vector<size_t>& topology = topology_[root];
-
-          // Copy everything into buf.merged for each gpu
-          for (size_t i = 0; i < src.size(); ++i) {
-            int start = scan_[root][depth_];
-            int end = scan_[root][depth_+1];
-
-            for (int j = start; j < end; ++j) {
-              int topo_id = topology[j];
-              TreeBufferEntry& buf = tree_merge_buf_[topo_id][key];
-
-              if (devs_[topo_id] == src[root][i].ctx()) {
-                CopyFromTo(src[root][i], &(buf.merged[root]), priority);
-              }
-            }
-          }
 
           int start = scan_[root][level];
           int end = scan_[root][level+1];
@@ -168,14 +172,13 @@ class CommDeviceTree : public CommDevice {
           for (unsigned i = 0; i < devs_.size(); ++i) {
             reduce[root][i].clear();
           }
-          int topo_id = topology[0];
-          TreeBufferEntry& buf = tree_merge_buf_[topo_id][key];
         }
       }
     } else {
       LOG(FATAL) << "Only dense input supported for now";
     }
   }
+
   /**
    * \brief Reduce src to tree_merge_buf_
    * \param key is the id of the gradient we are doing Reduce on
