@@ -83,6 +83,99 @@ class CommDeviceTree : public CommDevice {
     }
   }
 
+  void ReduceInnerFull(int key, 
+                       const std::vector<std::vector<NDArray>>& src, 
+                       int priority) {
+    std::vector<std::vector<std::vector<NDArray>>> reduce(devs_.size());
+    for (unsigned i = 0; i < devs_.size(); ++i)
+      reduce[i].resize(devs_.size()); 
+
+    TreeBufferEntry& random_buf = tree_merge_buf_[0][key];
+    const NDArrayStorageType stype = random_buf.merged[0].storage_type();
+
+    if (stype == kDefaultStorage) {
+      for (int level = depth_; level > 0; --level) {
+        for (unsigned root = 0; root < devs_.size(); ++root) {
+          std::vector<size_t>& topology = topology_[root];
+
+          // Copy everything into buf.merged for each gpu
+          for (size_t i = 0; i < src.size(); ++i) {
+            int start = scan_[root][depth_];
+            int end = scan_[root][depth_+1];
+
+            for (int j = start; j < end; ++j) {
+              int topo_id = topology[j];
+              TreeBufferEntry& buf = tree_merge_buf_[topo_id][key];
+
+              if (devs_[topo_id] == src[root][i].ctx()) {
+                CopyFromTo(src[root][i], &(buf.merged[root]), priority);
+              }
+            }
+          }
+
+          int start = scan_[root][level];
+          int end = scan_[root][level+1];
+
+          unsigned is_dest = 0;
+          int dest_id = 0;
+          for (int j = start; j < end; ++j) {
+            int topo_id = topology[j];
+            dest_id = (is_dest == 0) ? topo_id : dest_id;
+
+            TreeBufferEntry& buf_dest = tree_merge_buf_[dest_id][key];
+            TreeBufferEntry& buf_from = tree_merge_buf_[topo_id][key];
+
+            if (!is_dest) {
+              if (reduce[root][dest_id].size() == 0) {
+                reduce[root][dest_id].push_back(buf_dest.merged[root]);
+              }
+            } else {
+              if (dest_id != topo_id) {
+                CopyFromTo(buf_from.merged[root],
+                           &(buf_dest.copy_buf[root][is_dest-1]),
+                           priority);
+                reduce[root][dest_id].push_back(
+                    buf_dest.copy_buf[root][is_dest-1]);
+              }
+            }
+
+            is_dest = (is_dest == static_cast<unsigned>(kBranch)-1) ?
+                0 : is_dest+1;
+          }
+        }
+
+        for (unsigned root = 0; root < devs_.size(); ++root) {
+          std::vector<size_t>& topology = topology_[root];
+          int start = scan_[root][level-1];
+          int end = scan_[root][level];
+          int source = end;
+          for (int i = start; i < end; ++i) {
+            int gpu_id = topology[i];
+
+            // source keeps track of 2 leaf nodes, while start keeps track of parent
+            int dest_id = topology[source];
+            int from_id = topology[source+1];
+            source += 2;
+
+            // conditional to detect whether operation must be done
+            if (reduce[root][gpu_id].size() > 1 && dest_id != from_id) {
+              TreeBufferEntry& buf = tree_merge_buf_[gpu_id][key];
+              ElementwiseSum(reduce[root][gpu_id], &(buf.merged[root]), priority);
+            }
+          }
+
+          // reset
+          for (unsigned i = 0; i < devs_.size(); ++i) {
+            reduce[root][i].clear();
+          }
+          int topo_id = topology[0];
+          TreeBufferEntry& buf = tree_merge_buf_[topo_id][key];
+        }
+      }
+    } else {
+      LOG(FATAL) << "Only dense input supported for now";
+    }
+  }
   /**
    * \brief Reduce src to tree_merge_buf_
    * \param key is the id of the gradient we are doing Reduce on
@@ -98,7 +191,6 @@ class CommDeviceTree : public CommDevice {
     TreeBufferEntry& random_buf = tree_merge_buf_[0][key];
     const NDArrayStorageType stype = random_buf.merged[0].storage_type();
     std::vector<size_t>& topology = topology_[root];
-    NDArray buf_slice;
 
     if (stype == kDefaultStorage) {
       // Copy everything into buf.merged for each gpu
@@ -228,9 +320,9 @@ class CommDeviceTree : public CommDevice {
         // Do reduce-scatter (multiroot reduce)
         // input:  slice (src)
         // output: buf.merge_buf
-        for (unsigned i = 0; i < devs_.size(); ++i) {
-          ReduceInner(key, slice[i], i, i, priority);
-        }
+        //for (unsigned i = 0; i < devs_.size(); ++i) {
+          ReduceInnerFull(key, slice, priority);
+        //}
 
         for (unsigned i = 0; i < devs_.size(); ++i) {
           BroadcastInner(key, *(broadcast_slice[i][i]), broadcast_slice[i], i, i, priority);
