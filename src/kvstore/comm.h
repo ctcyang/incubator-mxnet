@@ -720,6 +720,8 @@ class CommDevice : public Comm {
     int n = static_cast<int>(gpus.size());
     int enabled = 0;
     std::vector<int> p2p(n*n);
+
+    // Restores active device to what it was before EnableP2P
     mxnet::common::cuda::SetDevice set_device;
     for (int i = 0; i < n; ++i) {
       cudaSetDevice(gpus[i]);

@@ -285,7 +285,7 @@ inline DType __device__ CudaMin(DType a, DType b) {
 
 class SetDevice {
  public:
-  /*! \brief default constructor is only restores previous device */
+  /*! \brief default constructor only restores previous device upon going out of scope */
   SetDevice() {
 #if MXNET_USE_CUDA
     CUDA_CALL(cudaGetDevice(&restore_device_));
