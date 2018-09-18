@@ -309,68 +309,6 @@ class KVStore(object):
                                                     cvals, ctypes.c_int(priority),
                                                     ctypes.c_bool(ignore_sparse)))
 
-    def pushpull(self, keys, ins, outs, priority=0, average=False):
-        """ allreduce a single or a sequence of key-value pairs from all nodes.
-        This function returns immediately after sending an allreduce request to mpi background
-        thread. The rank 0 node will collect allreduce request info from all nodes and ensure
-        every all reduce execution order is the same across all nodes.
-        Note: This api is only supported for allreduce kvstore
-        Parameters
-        ----------
-        keys : str, int, or sequence of str or int
-              Keys.
-        ins : NDArray, or list of list of NDArray
-              Values corresponding to the keys to be allreduced.
-        outs : NDArray, or list of list of NDArray.
-               Values corresponding to the keys to store the result.
-        priority: int, optional
-            The priority of the push operation.
-            Higher priority push operations are likely to be executed before
-            other push actions.
-        average : bool, optional
-                  Whether or not to divide gradient elementwise by the total 
-                  number of workers.
-        Examples
-        --------
-        >>> # allreduce a single key-value pair on 2 nodes
-        >>> shape = (2, 3)
-        >>> in_ = mx.nd.ones(shape)
-        >>> out_ = mx.nd.zeros(shape)
-        >>> kv.pushpull('key', in_, out_, False, 0)
-        >>> print out_.asnumpy()
-        [[ 2.  2.  2.]
-         [ 2.  2.  2.]]
-        >>> # allreduce a list of key-value pairs
-        >>> keys = ['5', '7', '9']
-        >>> in_ = [mx.nd.ones(shape)]*len(keys)
-        >>> out_ = [mx.nd.zeros(shape)]*len(keys)
-        >>> print out_[1].asnumpy()
-        [[ 2.  2.  2.]
-        [ 2.  2.  2.]]
-        >>> # allreduce a single key-value pair on 2 nodes and average the result
-        >>> shape = (2, 3)
-        >>> in_ = mx.nd.ones(shape)
-        >>> out_ = mx.nd.zeros(shape)
-        >>> kv.pushpull('key', in_, out_, True, 0)
-        >>> print out_.asnumpy()
-        [[ 1.  1.  1.]
-        [ 1.  1.  1.]]
-        """
-        if 'horovod' in self.type: # pylint: disable=unsupported-membership-test
-            ckeys, cinvals, use_str_keys = _ctype_key_value(keys, ins)
-            ckeys, coutvals, use_str_keys = _ctype_key_value(keys, outs)
-            if use_str_keys:
-                check_call(_LIB.MXKVStorePushPullEx(
-                    self.handle, mx_uint(len(ckeys)), ckeys, cinvals,
-                    coutvals, ctypes.c_int(priority), ctypes.c_int(average = int(average == 'True'))))
-            else:
-                check_call(_LIB.MXKVStorePushPull(
-                    self.handle, mx_uint(len(ckeys)), ckeys, cinvals,
-                    coutvals, ctypes.c_int(priority), ctypes.c_int(average = int(average == 'True'))))
-        else:
-            raise Exception("This api is not supported for kvstore with type %s. \
-                             Please use push and pull instead."%self.type)
-
     def broadcast(self, keys, values, root_rank, priority=0):
         """ Broadcast a single or a sequence of key-value pairs from root_rank to all other nodes
         This function returns immediately after sending an broadcast request to mpi background

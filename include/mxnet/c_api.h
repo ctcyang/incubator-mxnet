@@ -65,6 +65,8 @@ typedef int64_t dim_t;
 // these typedefs are mainly used for readablity reasons
 /*! \brief handle to NDArray */
 typedef void *NDArrayHandle;
+/*! \brief handle to Engine */
+typedef void *EngineHandle;
 /*! \brief handle to a mxnet narray function that changes NDArray */
 typedef const void *FunctionHandle;
 /*! \brief handle to a function that takes param and creates symbol */
@@ -191,6 +193,12 @@ typedef int (*CustomFunctionBwdFunc)(int /*num_ograds*/, int /*num_igrads*/, voi
                                      const int* /*reqs*/, const int /*is_train*/,
                                      void* /*state*/);
 typedef int (*CustomFunctionDelFunc)(void* /*state*/);
+
+typedef void (*Callback1)(EngineHandle /*engine*/, void* /*param*/);
+
+typedef int (*Callback2)(NDArrayHandle /*input*/, NDArrayHandle /*output*/, 
+                         int /*average*/, char* /*name*/, EngineHandle /*engine*/, 
+                         void* /*param*/, Callback1 /*cb*/);
 
 /*!
  * \brief return str message of the last error
@@ -396,6 +404,36 @@ MXNET_DLL int MXGetGPUCount(int* out);
  * \return 0 when success, -1 when failure happens
  */
 MXNET_DLL int MXGetVersion(int *out);
+
+/*!
+ * \brief lock output for duration of Callback function
+ * \param input is input dependency of allreduce
+ * \param output is output dependency of allreduce
+ * \param average if 0 means do not average, non-zero means average
+ * \param name is c-string of what this NDArray is called
+ * \param cb is callback that is used as lambda for mxnet::Engine::PushAsync()
+ * \return 0 when success, -1 when failure happens
+ */
+MXNET_DLL int MXWaitForHorovodAllreduce(NDArrayHandle input, 
+                                        NDArrayHandle output, 
+                                        int average,
+                                        char* name,
+                                        Callback2 cb);
+
+/*!
+ * \brief lock output for duration of Callback function
+ * \param input is input dependency of broadcast
+ * \param output is output dependency of broadcast
+ * \param root_rank is what is used as rank of broadcast
+ * \param name is c-string of what this NDArray is called
+ * \param cb is callback that is used as lambda for mxnet::Engine::PushAsync()
+ * \return 0 when success, -1 when failure happens
+ */
+MXNET_DLL int MXWaitForHorovodBroadcast(NDArrayHandle input, 
+                                        NDArrayHandle output, 
+                                        int root_rank,
+                                        char* name,
+                                        Callback2 cb);
 
 //-------------------------------------
 // Part 1: NDArray creation and deletion
@@ -1975,48 +2013,6 @@ MXNET_DLL int MXKVStorePullEx(KVStoreHandle handle,
                               const char** keys,
                               NDArrayHandle* vals,
                               int priority);
-
-/*!
- * \brief aggregate and sum up a list of (key, value) pairs from from all nodes, the result is stored
- *        in out_vals. It has the same syntax as allreduce. Note: Currently only kvstore with type
- *        'dist_sync_allreduce' support this api.
- * \param handle handle to the kvstore
- * \param num the number of key-value pairs
- * \param keys the list of keys
- * \param in_vals the list of values to be aggregated
- * \param out_vals the list of values to store the result
- * \param priority the priority of the action
- * \param average a flag to indicate whether or not to divide by number of workers
- * \return 0 when success, -1 when failure happens
- */
-MXNET_DLL int MXKVStorePushPull(KVStoreHandle handle,
-                                mx_uint num,
-                                const int *keys,
-                                NDArrayHandle *in_vals,
-                                NDArrayHandle *out_vals,
-                                int priority,
-                                int average);
-
-/*!
- * \brief aggregate and sum up a list of (key, value) pairs from from all nodes, the result is stored
- *        in out_vals. It has the same syntax as allreduce.Note: Currently only kvstore with type
- *        'dist_sync_allreduce' support this api.
- * \param handle handle to the kvstore
- * \param num the number of key-value pairs
- * \param keys the list of keys in string.
- * \param in_vals the list of values to be aggregated
- * \param out_vals the list of values to store the result
- * \param priority the priority of the action
- * \param average a flag to indicate whether or not to divide by number of workers
- * \return 0 when success, -1 when failure happens
- */
-MXNET_DLL int MXKVStorePushPullEx(KVStoreHandle handle,
-                                  mx_uint num,
-                                  const char **keys,
-                                  NDArrayHandle *in_vals,
-                                  NDArrayHandle *out_vals,
-                                  int priority,
-                                  int average);
 
 /*!
  * \brief broadcast a list of (key, value) pairs from root_rank to all other nodes. Note:

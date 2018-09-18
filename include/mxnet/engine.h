@@ -55,10 +55,24 @@ typedef Opr* OprHandle;
  */
 class CallbackOnComplete {
  public:
+  typedef void (*func)(Engine *, void *);
+
   // use implicit copy and assign
   /*! \brief involve the callback */
   inline void operator()() const {
     (*callback_)(engine_, param_);
+  }
+
+  inline func GetCallback() {
+    return callback_;
+  }
+
+  inline Engine* GetEngine() {
+    return engine_;
+  }
+
+  inline void* GetParam() {
+    return param_;
   }
 
  private:
@@ -265,6 +279,7 @@ class MXNET_API Engine {
     ret.param_ = param;
     return ret;
   }
+
   // For each var vector, sort it and remove the duplicated vars.
   // Also remove vars from read_vars if it also appears in write_vars
   inline void DeduplicateVarHandle(std::vector<engine::VarHandle> *read_vars,

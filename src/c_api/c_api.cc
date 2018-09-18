@@ -128,6 +128,69 @@ int MXGetVersion(int *out) {
   API_END();
 }
 
+int MXWaitForHorovodAllreduce(NDArrayHandle input_handle,
+                              NDArrayHandle output_handle,
+                              int average,
+                              char* name,
+                              Callback2 cb2) {
+  API_BEGIN();
+  NDArray* input = static_cast<NDArray*>(input_handle);
+  NDArray* output = static_cast<NDArray*>(output_handle);
+  auto allreduce_async_fn = [input, output, name, average, cb2](
+      RunContext rctx, Engine::CallbackOnComplete cb) mutable {
+    void (*callback)(void*, void*) = (void(*)(void*, void*))cb.GetCallback();
+    void* engine = static_cast<void*>(cb.GetEngine());
+    void* param = cb.GetParam();
+    cb2(input, output, average, name, engine, param, callback);
+  };
+  if (input->var() != output->var()) {
+    Engine::Get()->PushAsync(
+      allreduce_async_fn,
+      input->ctx(),
+      {input->var()},
+      {output->var()},
+      FnProperty::kNormal,
+      0,
+      "HorovodAllreduce");
+  } else {
+    Engine::Get()->PushAsync(
+      allreduce_async_fn,
+      input->ctx(),
+      {},
+      {output->var()},
+      FnProperty::kNormal,
+      0,
+      "HorovodAllreduce");
+  }
+  API_END();
+}
+
+int MXWaitForHorovodBroadcast(NDArrayHandle input_handle,
+                              NDArrayHandle output_handle,
+                              int root_rank,
+                              char* name,
+                              Callback2 cb2) {
+  API_BEGIN();
+  NDArray* input = static_cast<NDArray*>(input_handle);
+  NDArray* output = static_cast<NDArray*>(output_handle);
+  auto broadcast_async_fn = [input, output, name, root_rank, cb2](
+      RunContext rctx, Engine::CallbackOnComplete cb) mutable {
+    void (*callback)(void*, void*) = (void(*)(void*, void*))cb.GetCallback();
+    void* engine = static_cast<void*>(cb.GetEngine());
+    void* param = cb.GetParam();
+    cb2(input, output, root_rank, name, engine, param, callback);
+  };
+  Engine::Get()->PushAsync(
+    broadcast_async_fn,
+    Context::CPU(0),
+    {},
+    {output->var()},
+    FnProperty::kNormal,
+    0,
+    "HorovodBroadcast");
+  API_END();
+}
+
 int MXNDArrayCreateNone(NDArrayHandle *out) {
   API_BEGIN();
   *out = new NDArray();
@@ -922,46 +985,6 @@ int MXKVStorePullWithSparseEx(KVStoreHandle handle,
     v_vals[i] = static_cast<NDArray*>(vals[i]);
   }
   static_cast<KVStore*>(handle)->Pull(v_keys, v_vals, priority, ignore_sparse);
-  API_END();
-}
-
-int MXKVStorePushPull(KVStoreHandle handle,
-                      mx_uint num,
-                      const int *keys,
-                      NDArrayHandle *in_vals,
-                      NDArrayHandle *out_vals,
-                      int priority,
-                      int average) {
-  API_BEGIN();
-  std::vector<int> v_keys(num);
-  std::vector<NDArray> v_invals(num);
-  std::vector<NDArray*> v_outvals(num);
-  for (mx_uint i = 0; i < num; ++i) {
-    v_keys[i] = keys[i];
-    v_invals[i] = *static_cast<NDArray*>(in_vals[i]);
-    v_outvals[i] = static_cast<NDArray*>(out_vals[i]);
-  }
-  static_cast<KVStore*>(handle)->PushPull(v_keys, v_invals, v_outvals, priority, average);
-  API_END();
-}
-
-int MXKVStorePushPullEx(KVStoreHandle handle,
-                        mx_uint num,
-                        const char **keys,
-                        NDArrayHandle *in_vals,
-                        NDArrayHandle *out_vals,
-                        int priority,
-                        int average) {
-  API_BEGIN();
-  std::vector<std::string> v_keys(num);
-  std::vector<NDArray> v_invals(num);
-  std::vector<NDArray*> v_outvals(num);
-  for (mx_uint i = 0; i < num; ++i) {
-    v_keys[i] = keys[i];
-    v_invals[i] = *static_cast<NDArray*>(in_vals[i]);
-    v_outvals[i] = static_cast<NDArray*>(out_vals[i]);
-  }
-  static_cast<KVStore*>(handle)->PushPull(v_keys, v_invals, v_outvals, priority, average);
   API_END();
 }
 
