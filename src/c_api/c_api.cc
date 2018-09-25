@@ -122,6 +122,12 @@ int MXGetGPUCount(int* out) {
   API_END();
 }
 
+int MXGetGPUMemoryInformation(int dev, int *free_mem, int *total_mem) {
+  API_BEGIN();
+  Context::GetGPUMemoryInformation(dev, free_mem, total_mem);
+  API_END();
+}
+
 int MXGetVersion(int *out) {
   API_BEGIN();
   *out = static_cast<int>(MXNET_VERSION);
@@ -490,6 +496,31 @@ int MXNDArrayGetData(NDArrayHandle handle,
     *out_pdata = arr->data().dptr_;
   } else {
     *out_pdata = nullptr;
+  }
+  API_END();
+}
+
+int MXNDArrayToDLPack(NDArrayHandle handle,
+                      DLManagedTensorHandle *out_dlpack) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  *out_dlpack = arr->ToDLPack();
+  API_END();
+}
+
+int MXNDArrayFromDLPack(DLManagedTensorHandle dlpack,
+                        NDArrayHandle *out_handle) {
+  API_BEGIN();
+  *out_handle = new NDArray(NDArray::FromDLPack(
+              static_cast<DLManagedTensor*>(dlpack)));
+  API_END();
+}
+
+int MXNDArrayCallDLPackDeleter(DLManagedTensorHandle dlpack) {
+  API_BEGIN();
+  if (dlpack != nullptr) {
+    DLManagedTensor *p_dlpack = static_cast<DLManagedTensor*>(dlpack);
+    p_dlpack->deleter(p_dlpack);
   }
   API_END();
 }

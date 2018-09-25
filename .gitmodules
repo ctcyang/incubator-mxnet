@@ -26,7 +26,6 @@
 [submodule "3rdparty/tvm"]
 	path = 3rdparty/tvm
 	url = https://github.com/dmlc/tvm
-[submodule "3rdparty/horovod"]
-	path = 3rdparty/horovod
-	url = https://github.com/ctcyang/horovod.git
-        branch = mxnet_fp16_divide_before_sum
+[submodule "3rdparty/onnx-tensorrt"]
+	path = 3rdparty/onnx-tensorrt
+	url = https://github.com/onnx/onnx-tensorrt.git
