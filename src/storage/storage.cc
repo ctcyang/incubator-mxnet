@@ -51,6 +51,7 @@ class StorageImpl : public Storage {
   static void ActivateDevice(Context ctx) {
     switch (ctx.dev_type) {
       case Context::kCPU:
+        break;
       case Context::kCPUPinned:
 #if MXNET_USE_CUDA
         if (num_gpu_device > 0) {
@@ -148,9 +149,11 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
         return ptr;
       });
 
-  // Will restore gpu device to before ActivateDevice
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device;
+  // Will restore gpu device to before ActivateDevice if necessary
+  bool restore = handle->ctx.dev_type == Context::kCPUPinned ||
+                 handle->ctx.dev_type == Context::kGPU;
+  mxnet::common::cuda::SetDevice set_device(restore);
 #endif
   this->ActivateDevice(handle->ctx);
   manager->Alloc(handle);
@@ -165,9 +168,10 @@ void StorageImpl::Free(Storage::Handle handle) {
         LOG(FATAL) <<  "Cannot Free space to a device you have not allocated";
         return nullptr;
       });
-  // Will restore gpu device to before ActivateDevice
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device;
+  // Will restore gpu device to before ActivateDevice if necessary
+  bool restore = ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kGPU;
+  mxnet::common::cuda::SetDevice set_device(restore);
 #endif
   this->ActivateDevice(ctx);
   manager->Free(handle);
@@ -182,9 +186,10 @@ void StorageImpl::DirectFree(Storage::Handle handle) {
         LOG(FATAL) <<  "Cannot Free space to a device you have not allocated";
         return nullptr;
       });
-  // Will restore gpu device to before ActivateDevice
 #if MXNET_USE_CUDA
-  mxnet::common::cuda::SetDevice set_device;
+  // Will restore gpu device to before ActivateDevice if necessary
+  bool restore = ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kGPU;
+  mxnet::common::cuda::SetDevice set_device(restore);
 #endif
   this->ActivateDevice(ctx);
   manager->DirectFree(handle);
