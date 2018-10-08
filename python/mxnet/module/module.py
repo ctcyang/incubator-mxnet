@@ -500,7 +500,7 @@ class Module(BaseModule):
                 _create_kvstore(kvstore, len(self._context), self._arg_params)
 
         batch_size = self._exec_group.batch_size
-        if kvstore and 'dist' in kvstore.type and '_sync' in kvstore.type:
+        if kvstore and (('dist' in kvstore.type and '_sync' in kvstore.type) or ('horovod' in kvstore.type)):
             batch_size *= kvstore.num_workers
         rescale_grad = 1.0/batch_size
 
