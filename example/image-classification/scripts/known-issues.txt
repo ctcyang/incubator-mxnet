@@ -1,0 +1,49 @@
+*In-place broadcast not working (fixed in Final API)*
+  -suspected reason: Engine puts lock on output NDArray, so when in-place broadcast is attempted, the Memcpy from GPU to CPU temp buffer never happens (https://github.com/ctcyang/horovod/blob/25c095ca287e6b8893ebab237fd0ea2a4f86fde9/horovod/mxnet/mpi_ops.cc#L81)
+  -fix: move Memcpy out of DoBroadcastCudaCPU and pass CPU MXTemporaryBuffer shared pointer instead (https://github.com/ctcyang/horovod/blob/59c52a1ab122687c1142116e1f22dab423899ef0/horovod/mxnet/mpi_ops.cc#L179)
+  -already fixed in Final API, but not Prototype API
+  -workarounds:
+  1) Final API supports `p_out = hvd.broadcast(p_in, root_rank=0, name='layer1')`. This out-of-place broadcast avoids output NDArray being the same as input NDArray, so it is possible for the Memcpy to go through.
+  2) Set RNG seeds to be same across all machines for `mxnet`, `numpy` and `Python`
+  -Unfortunately, the Prototype API does not support out-of-place Broadcast due to KVStore::Pull interface
+  -This may be a good reason to switch to Final API, but I am not sure it's a good choice due to the time crunch and how much work you've already done on top of Prototype API. It might be good to go with the RNG approach instead.
+
+*All-reduce average variant not working (fixed in Final API)*
+  -suspected reason: according to @huilgolr, this is because you cannot use NDArray ops inside the lambda that the Engine has already called (https://github.com/ctcyang/horovod/blob/25c095ca287e6b8893ebab237fd0ea2a4f86fde9/horovod/mxnet/mpi_ops.cc#L62)
+  -solution: move it outside (maybe even to the Python layer) to after the allreduce has completed
+  -fix: https://github.com/ctcyang/horovod/blob/59c52a1ab122687c1142116e1f22dab423899ef0/horovod/mxnet/mpi_ops.py#L85
+  -However, perf in this allreduce average variant is significantly worse than non-average variant (due to the wait_to_read(), which is necessary to avoid segfault)
+
+*float16 HIERARCHICAL_ALLREDUCE not working*
+  -Error message: *** An error occurred in MPI_Allreduce: the reduction operation MPI_SUM is not defined for non-intrinsic datatypes
+  -suspected reason: Horovod MPI using CPU (i.e. non-CUDA aware) does not support float16 MPI_SUM ops
+  -We are running into an issue with `update_multi_precision` in https://github.com/ctcyang/horovod/blob/0a0240113fe5a24ec2c772fd7309840ba179562a/horovod/mxnet/__init__.py#L47 We don't yet have a way of hooking into SGD's `update_multi_precision` to do the `hvd.allreduce` before weight update and after it is casted to float32. The way it is written now, the `hvd.allreduce` is all-reducing in `float16`, which does not presently support hierarchical allreduce
+  -this is an issue, because our scalability experiments for 256 GPUs in float32 mode show 68% scalability with HOROVOD_HIERARCHICAL_ALLREDUCE=0, and 92.1% scalability with HOROVOD_HIERARCHICAL_ALLREDUCE=1. If this analogy holds for float16, hierarchical allreduce will be a necessity for getting good scalability
+  -it is a good idea to rebase with Horovod `master` if you haven't done so already, to take advantage of this new performance-improving feature
+  -3 possible fixes:
+    1) add MPI_SUM for float16 and do gradient all-reduce in float16 (may be difficult to converge model)
+    2) hook into `update_multi_precision` after casting gradient to float32 and before weight update
+    3) hardcode `hvd.allreduce` here. Problems: Might not be possible for mxnet to import horovod?
+
+*gluon multiprocessing error*
+  -suspected reason: Python multiprocessing library which spawns new threads and add a limitation that no CUDA driver calls can be made before spawning new threads
+  -link to 2 possible solutions: https://github.com/pytorch/pytorch/issues/2517
+  1) Use `mp.set_start_method(spawn)`
+  -@haibin points out that `mp.set_start_method(spawn)` is not available before Python 3.4 (i.e. Python 2.7 does not have this method)
+  2) Change `cudaSetDevice` guards to `CUDA_VISIBLE_DEVICES` method of assigning each process 1 GPU, so that the `cudaSetDevice` guards are no longer necessary
+  -workaround: Ignore CI errors related to gluon for now
+
+*MXNet engine shuts down before all Horovod ops have completed*
+  -workaround: add `mx.nd.waitall()` after `model.fit`
+
+*random segfaults during training*
+  -suspected reason: unknown
+
+*allreduce validation results*
+  -error: currently each GPU is running validation on only a portion of the validation dataset, so validation accuracy trails training accuracy a lot at 90 epochs (8% vs. 75%)
+  -fix: change it so each GPU validates entire validation dataset
+
+*error in converting boolean to int (fixed in Final API)*
+  -error: https://github.com/ctcyang/incubator-mxnet/blob/29b968229f9c806a4f1729f33b8c5944c47440c3/python/mxnet/kvstore.py#L365 and line 369
+  -this line should say `ctypes.c_int(int(average == True))` instead of `ctypes.c_int(average = int(average == 'True'))`
+  -already fixed in Final API, only present in Prototype API

@@ -1,0 +1,54 @@
+From: "Wu, Yong" <yongwu@amazon.com>
+Date: Monday, June 25, 2018 at 3:35 PM
+To: "Pantic, Zdravko" <zppantic@amazon.com>, "Ragab, Amr" <amrraga@amazon.com>
+Cc: "Huilgol, Rahul" <huilgolr@amazon.com>, "Kapoor, Chetan" <ckkapoor@amazon.com>, "Rochel, Steffen" <steroche@amazon.com>
+Subject: Re: TF Resnet50 on 8 nodes
+ 
+I have added the read permission for you to the imagenet tfrecords, if you don’t want to prepare the dataset on your own, you can use the preprocessed dataset I am using:
+ 
+training dataset: S3://aws-tensorflow-benchmarking/imagenet-armand/train-480px
+validation dataset: S3://aws-tensorflow-benchmarking/imagenet-armand/validation-480px
+raw dataset:  S3://aws-tensorflow-benchmarking/imagenet-armand/raw_data
+ 
+Thanks,
+Yong
+ 
+From: "Wu, Yong" <yongwu@amazon.com>
+Date: Monday, June 25, 2018 at 3:23 PM
+To: "Pantic, Zdravko" <zppantic@amazon.com>, "Ragab, Amr" <amrraga@amazon.com>
+Cc: "Huilgol, Rahul" <huilgolr@amazon.com>, "Kapoor, Chetan" <ckkapoor@amazon.com>, Steffen Rochel <steroche@amazon.com>
+Subject: Re: TF Resnet50 on 8 nodes
+ 
+Hi Amr,
+ 
+For tensorflow distributed training, we have been using horovod instead of tf native, more details about horovod please refer to https://github.com/uber/horovod/tree/master/horovod. To set up the training env., you need to install openmpi, nccl, tensorflow and horovod, alternatively, the deep learning ami has preinstalled all of them in conda env “tensorflow_p36”/”tensorlfow_p27”.
+ 
+My training script is here - https://s3.amazonaws.com/tensorflow-benchmark-dataset/distributed/aws_tf_hvd_cnn_distributed.py.  You can use the following command to train:
+ 
+“mpirun -np 64 -hostfile hosts -bind-to none -map-by slot -x NCCL_DEBUG=INFO -x NCCL_MIN_NRINGS=4 -x LD_LIBRARY_PATH -x PATH -mca pml ob1 -mca btl ^openib python -u /home/ubuntu/horovod/aws_tf_hvd_cnn_distributed.py --fp16 --data_dir //home/ubuntu/horovod/imagenet/nv_train/ --model resnet50 --log_dir //home/ubuntu/horovod/results/ --display_every 10 --batch_size=256 --num_epochs=90 --save_interval=1200
+”
+The hosts file just includes your workers’ info like this:
+10.0.1.227 slots=8
+10.0.1.203 slots=8
+ 
+For evaluation:
+python -u //home/ubuntu/horovod/aws_tf_hvd_cnn_distributed.py --batch_size=256 --num_epochs=90  --data_dir //home/ubuntu/horovod/imagenet/nv_validation/ --model resnet50 --log_dir //home/ubuntu/horovod/results/ --display_every 100 --eval
+ 
+Feel free to generate your own tfrecords by following the guide, or get a copy from Armond armanmcq@. Will be onsite for a customer issue from tomorrow on, please feel free to ask Armond if I am not available.
+ 
+Thanks,
+Yong
+ 
+ 
+From: "Pantic, Zdravko" <zppantic@amazon.com>
+Date: Monday, June 25, 2018 at 2:58 PM
+To: "Ragab, Amr" <amrraga@amazon.com>, "Wu, Yong" <yongwu@amazon.com>
+Cc: "Huilgol, Rahul" <huilgolr@amazon.com>, "Kapoor, Chetan" <ckkapoor@amazon.com>, Steffen Rochel <steroche@amazon.com>
+Subject: TF Resnet50 on 8 nodes
+ 
+Hi Amr,
+ 
+Just spoke w/ Yong. He will send you detailed instructions on how to run TF w/ Horovod. Rahul can help with the convergence afterwards.
+ 
+Regards,
+Zdravko
