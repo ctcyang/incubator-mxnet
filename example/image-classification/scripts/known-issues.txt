@@ -25,7 +25,7 @@
     2) hook into `update_multi_precision` after casting gradient to float32 and before weight update
     3) hardcode `hvd.allreduce` here. Problems: Might not be possible for mxnet to import horovod?
 
-*gluon multiprocessing error (fixed in both Prototype and Final API)*
+*gluon multiprocessing error (fixed in both Prototype and Final API - thanks @dickjc123!)*
   -suspected reason: Python multiprocessing library which spawns new threads and add a limitation that no CUDA driver calls can be made before spawning new threads
   -link to 2 possible solutions: https://github.com/pytorch/pytorch/issues/2517
   1) Use `mp.set_start_method(spawn)`
