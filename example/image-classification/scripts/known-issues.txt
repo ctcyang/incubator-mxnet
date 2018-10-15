@@ -1,4 +1,4 @@
-*In-place broadcast not working (fixed in Final API)*
+*In-place broadcast not working (fixed in both Prototype and Final API - thanks @yuxihu!)*
   -suspected reason: Engine puts lock on output NDArray, so when in-place broadcast is attempted, the Memcpy from GPU to CPU temp buffer never happens (https://github.com/ctcyang/horovod/blob/25c095ca287e6b8893ebab237fd0ea2a4f86fde9/horovod/mxnet/mpi_ops.cc#L81)
   -fix: move Memcpy out of DoBroadcastCudaCPU and pass CPU MXTemporaryBuffer shared pointer instead (https://github.com/ctcyang/horovod/blob/59c52a1ab122687c1142116e1f22dab423899ef0/horovod/mxnet/mpi_ops.cc#L179)
   -already fixed in Final API, but not Prototype API
