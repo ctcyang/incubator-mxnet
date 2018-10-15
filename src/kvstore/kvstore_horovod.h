@@ -258,9 +258,13 @@ class KVStoreHorovod : public KVStoreLocal {
 
       NDArray& input  = *grouped_vals[i][0];
       NDArray& output = *grouped_vals[i][0];
-      auto broadcast_async_fn = [input, output, root_rank, name_from_key](
+      // Create a temporary NDArray for in-place broadcast.
+      NDArray input_cpu = NDArray(input.shape(), Context::CPU(), false, input.dtype());
+      CopyFromTo(input, &input_cpu);
+
+      auto broadcast_async_fn = [input_cpu, root_rank, name_from_key](
           RunContext rctx, Engine::CallbackOnComplete cb) mutable {
-        horovod_mxnet_broadcast_async(&input, &output, root_rank, name_from_key, cb);
+        horovod_mxnet_broadcast_async(&input_cpu, root_rank, name_from_key, cb);
       };
       Engine::Get()->PushAsync(
         broadcast_async_fn,
@@ -270,6 +274,9 @@ class KVStoreHorovod : public KVStoreLocal {
         FnProperty::kNormal,
         priority,
         "KVStoreHorovodBroadcast");
+
+      // Copy results to output.
+      CopyFromTo(input_cpu, &output);
     }
   }
 
