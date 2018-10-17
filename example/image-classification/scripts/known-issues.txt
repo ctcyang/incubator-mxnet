@@ -47,3 +47,7 @@
   -error: https://github.com/ctcyang/incubator-mxnet/blob/29b968229f9c806a4f1729f33b8c5944c47440c3/python/mxnet/kvstore.py#L365 and line 369
   -this line should say `ctypes.c_int(int(average == True))` instead of `ctypes.c_int(average = int(average == 'True'))`
   -already fixed in Final API, only present in Prototype API
+
+*possible issue in hvd.barrier (method only present in Final API)*
+  -error: crash according to Intel folks (@threeleafzerg)
+  -may need to investigate further
