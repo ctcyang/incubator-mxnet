@@ -12,8 +12,8 @@ To install Horovod on top of MXNet:
 2) NCCL (we tested with both NCCL 2.1 and 2.2)
 
 # Building MXNet
-1) git clone --recursive https://github.com/ctcyang/incubator-mxnet-1.git -b horovod_feature mxnet
-2) Verify the branch is on **horovod_feature**
+1) git clone --recursive https://github.com/apache/incubator-mxnet.git
+2) Verify the branch is on **master**
 3) cd mxnet & cp make/config.mk .
 4) Only config.mk + Makefile build chain works. We have not added CMakeLists support yet. Make following changes to config.mk. Note: these are *in addition* to the standard `USE_CUDA = 1` and `USE_CUDA_PATH = [cuda directory]` additions to config.mk when building MXNet for GPU:
   ```
